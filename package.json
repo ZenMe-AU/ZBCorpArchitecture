@@ -1,0 +1,47 @@
+{
+  "name": "Zenblox Corporate Deployment Architecture",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "",
+  "private": true,
+  "workspaces": [
+
+  ],
+  "scripts": {
+    "prepare": "husky",
+  },
+  "devDependencies": {
+    "@azure/identity": "^4.11.1",
+    "@eslint/js": "^9.38.0",
+    "@microsoft/eslint-formatter-sarif": "^3.1.0",
+    "@microsoft/microsoft-graph-client": "^3.0.7",
+    "archiver": "^7.0.1",
+    "dotenv": "^16.6.1",
+    "esbuild": "^0.27.0",
+    "eslint": "^9.38.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-header": "^3.1.1",
+    "eslint-plugin-license-header": "^0.8.0",
+    "eslint-plugin-prettier": "^5.5.4",
+    "eslint-plugin-react": "^7.37.5",
+    "glob": "^11.0.3",
+    "globals": "^16.4.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.6",
+    "minimist": "^1.2.8",
+    "prettier": "^3.6.2",
+    "snyk": "^1.1300.2",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.46.2",
+    "unique-names-generator": "^4.7.1"
+  },
+  "pnpm": {
+    "overrides": {
+    },
+    "onlyBuiltDependencies": [
+    ]
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

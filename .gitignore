@@ -1,0 +1,46 @@
+node_modules/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+package-lock.json
+*/package-lock.json
+
+api/src/module/shared/db/migration
+ui/.react-router
+
+#Build files
+
+
+
+# Terraform files
+*.tfstate
+terraform.tfstate.backup
+.terraform.*
+.terraform/
+.env
+planfile
+
+# Snyk Security Extension - AI Rules (auto-generated)
+.github/instructions/snyk_rules.instructions.md
+**/.github/instructions/snyk_rules.instructions.md
+
+# Snyk Security Extension - AI Rules (auto-generated)
+.github\instructions\snyk_rules.instructions.md
+**/.github\instructions\snyk_rules.instructions.md
