@@ -304,6 +304,7 @@ resource "aws_cloudfront_distribution" "website" {
   viewer_certificate {
     acm_certificate_arn = aws_acm_certificate.cf.arn
     ssl_support_method  = "sni-only"
+    minimum_protocol_version = "TLSv1.2_2021"
   }
 
   origin {
@@ -314,6 +315,7 @@ resource "aws_cloudfront_distribution" "website" {
 
   default_root_object = "unavailable.html"
   enabled             = true
+  http_version        = "http2and3"
   default_cache_behavior {
     allowed_methods = ["GET", "HEAD"]
     cached_methods  = ["GET", "HEAD"]
@@ -410,6 +412,7 @@ resource "aws_cloudfront_distribution" "spa" {
   viewer_certificate {
     acm_certificate_arn = aws_acm_certificate.cf.arn
     ssl_support_method  = "sni-only"
+    minimum_protocol_version = "TLSv1.2_2021"
   }
 
   origin {
@@ -420,6 +423,7 @@ resource "aws_cloudfront_distribution" "spa" {
 
   default_root_object = "index.html"
   enabled             = true
+  http_version        = "http2and3"
   ordered_cache_behavior {
     path_pattern    = "/assets/*"
     allowed_methods = ["GET", "HEAD"]
@@ -498,6 +502,7 @@ resource "aws_cloudfront_distribution" "prod" {
   viewer_certificate {
     acm_certificate_arn = aws_acm_certificate.cf_prod.arn
     ssl_support_method  = "sni-only"
+    minimum_protocol_version = "TLSv1.2_2021"
   }
 
   origin {
@@ -508,6 +513,7 @@ resource "aws_cloudfront_distribution" "prod" {
 
   default_root_object = "unavailable.html"
   enabled             = true
+  http_version        = "http2and3"
   default_cache_behavior {
     allowed_methods = ["GET", "HEAD"]
     cached_methods  = ["GET", "HEAD"]
