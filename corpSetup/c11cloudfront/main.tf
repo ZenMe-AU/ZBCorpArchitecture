@@ -24,13 +24,13 @@ resource "azuread_application" "msal_spa" {
   }
 }
 
-
 resource "local_file" "config_js" {
-  filename = "${var.bucket_spa_source_folder}/dist/config.js"
+  filename = "${var.bucket_spa_source_folder}/config.js"
 
   content = templatefile("${var.bucket_spa_source_folder}/template/config.js.tpl", {
     client_id = azuread_application.msal_spa.client_id
     redirect_uri = "https://login.${var.dns_name}/"
+    domain_name = var.dns_name
   })
 }
 
@@ -77,6 +77,18 @@ resource "aws_s3_object" "unavailable_page" {
 #     working_dir = var.bucket_spa_source_folder
 #   }
 # }
+resource "aws_s3_object" "spa_config" {
+  bucket = aws_s3_bucket.spa.id
+  key    = "config.js"
+  source = local_file.config_js.filename
+  etag   = md5(local_file.config_js.content)
+
+  content_type = "application/javascript"
+
+  depends_on = [
+    local_file.config_js
+  ]
+}
 
 resource "aws_s3_object" "spa_files" {
   for_each = fileset("${var.bucket_spa_source_folder}/dist", "**/*")
@@ -91,10 +103,6 @@ resource "aws_s3_object" "spa_files" {
     lower(element(split(".", each.value), length(split(".", each.value)) - 1)),
     "binary/octet-stream"
   )
-
-  depends_on = [
-    local_file.config_js
-  ]
 }
 
 data "aws_iam_policy_document" "lambda_edge_assume_role" {
