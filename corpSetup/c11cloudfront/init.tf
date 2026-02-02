@@ -28,3 +28,8 @@ provider "azurerm" {
 }
 
 provider "azuread" {}
+
+terraform {
+  backend "azurerm" {
+  }
+}

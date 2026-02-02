@@ -598,7 +598,7 @@ function main() {
         setTfVar("origin_request_policy_name", originRequestPolicyName);
 
         execSync(
-          `terraform init \
+          `terraform init -reconfigure\
             -backend-config="resource_group_name=${resourceGroupName}" \
             -backend-config="storage_account_name=${storageAccountName}" \
             -backend-config="container_name=terraformstate" \
