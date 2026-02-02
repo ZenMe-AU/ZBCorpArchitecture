@@ -111,3 +111,9 @@ variable "origin_request_policy_name" {
   type        = string
   # default     = "asleepswordtail-origin-request-policy"
 }
+
+variable "tenant_id" {
+  description = "The Azure AD Tenant ID"
+  type        = string
+  default     = "15fb0613-7977-4551-801b-6aadac824241"
+}

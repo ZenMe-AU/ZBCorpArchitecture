@@ -33,6 +33,17 @@ resource "local_file" "config_js" {
     redirect_uri = "https://login.${var.dns_name}/"
   })
 }
+
+resource "local_file" "guard_config" {
+  filename = "${var.lambda_edge_auth_guard_source_folder}/dist/config.mjs"
+
+  content = templatefile("${var.lambda_edge_auth_guard_source_folder}/template/config.js.tpl", {
+    client_id = azuread_application.msal_spa.client_id
+    tenant_id = var.tenant_id
+    auth_domain = "https://login.${var.dns_name}/"
+  })
+}
+
 #==========================================================
 # aws_acm_certificate
 #         ↓
@@ -126,8 +137,10 @@ data "archive_file" "edge_zip" {
   type        = "zip"
   source_dir  = "${var.lambda_edge_auth_guard_source_folder}/dist"
   output_path = "${var.lambda_edge_auth_guard_source_folder}/lambda.zip"
-  
+
   excludes = ["lambda.zip"]
+
+  depends_on = [ local_file.guard_config ]
 }
 
 resource "aws_lambda_function" "viewer_request" {

@@ -1,20 +1,21 @@
 "use strict";
 import jwt from "jsonwebtoken";
 import jwksClient from "jwks-rsa";
+import { CLIENT_ID, TENANT_ID, AUTH_DOMAIN } from "./config.mjs";
 
-// const CLIENT_ID = "b0ee1412-c79a-48f3-978e-f61f740d7832";
-const CLIENT_ID = "b0552ac8-f601-4f4f-be1f-f1c3446aae71";
-const TENANT_ID = "15fb0613-7977-4551-801b-6aadac824241";
-const MS_PUBLIC_KEY = `-----BEGIN PUBLIC KEY-----
-MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAhTfqnXJAT9zSM4Xm5QHD
-3kIW1tXHj5+1xj35D3ht0s9WogK2nzcwlSDWivqnt1aED3njfI9V6V8rOI5Sde8K
-B87QfLH6SmRtG4dLixDfFoulHPamQ9lEp5i8xVZeypRM03O30AGCfx0G83JiiHVA
-VLqpjc8Ervl6yMNHyg8hyBkbV/IyeZVVJW2nu0ljkQwyTLr1GH1h2I7a/ioK6WlW
-7lNK8OYLSEQ/B9ecaKf8dPDy1/Zt5f7I6RdJPRicSgsBUeX34CuJJuBiOB0k4Tih
-JVhc43YexUDo+Sd/e2P3BgpdK3I0ksX5c58yO2z0OvpFHYSg2CYOdzEOj/mLKbOA
-zQIDAQAB
------END PUBLIC KEY-----`;
-const AUTH_DOMAIN = "https://login.zenblox.com.au";
+// // const CLIENT_ID = "b0ee1412-c79a-48f3-978e-f61f740d7832";
+// const CLIENT_ID = "b0552ac8-f601-4f4f-be1f-f1c3446aae71";
+// const TENANT_ID = "15fb0613-7977-4551-801b-6aadac824241";
+// const MS_PUBLIC_KEY = `-----BEGIN PUBLIC KEY-----
+// MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAhTfqnXJAT9zSM4Xm5QHD
+// 3kIW1tXHj5+1xj35D3ht0s9WogK2nzcwlSDWivqnt1aED3njfI9V6V8rOI5Sde8K
+// B87QfLH6SmRtG4dLixDfFoulHPamQ9lEp5i8xVZeypRM03O30AGCfx0G83JiiHVA
+// VLqpjc8Ervl6yMNHyg8hyBkbV/IyeZVVJW2nu0ljkQwyTLr1GH1h2I7a/ioK6WlW
+// 7lNK8OYLSEQ/B9ecaKf8dPDy1/Zt5f7I6RdJPRicSgsBUeX34CuJJuBiOB0k4Tih
+// JVhc43YexUDo+Sd/e2P3BgpdK3I0ksX5c58yO2z0OvpFHYSg2CYOdzEOj/mLKbOA
+// zQIDAQAB
+// -----END PUBLIC KEY-----`;
+// const AUTH_DOMAIN = "https://login.zenblox.com.au";
 
 // Microsoft JWKS client
 const msJwks = jwksClient({
