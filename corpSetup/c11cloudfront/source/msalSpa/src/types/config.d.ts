@@ -5,6 +5,7 @@ declare global {
     __APP_CONFIG__?: {
       clientId: string;
       redirectUri: string;
+      domainName: string;
     };
   }
 }

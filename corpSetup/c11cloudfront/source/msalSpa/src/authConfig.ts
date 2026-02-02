@@ -7,6 +7,7 @@ const cfg =
       return {
         clientId: "b0ee1412-c79a-48f3-978e-f61f740d7832",
         redirectUri: "http://localhost:3000",
+        domainName: "localhost",
       };
     }
     // production fallback
@@ -38,4 +39,7 @@ export const msalConfig: Configuration = {
 export const loginRequest = {
   // scopes: ["User.Read"],
   scopes: ["openid", "profile", "email"],
+  prompt: "select_account",
 };
+
+export const cookieDomain = cfg.domainName;

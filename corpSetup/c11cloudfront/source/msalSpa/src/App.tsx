@@ -1,15 +1,14 @@
 // import React from "react";
 import { PublicClientApplication, type AccountInfo } from "@azure/msal-browser";
 import { MsalProvider, useMsal, useIsAuthenticated } from "@azure/msal-react";
-import { msalConfig, loginRequest } from "./authConfig";
+import { msalConfig, loginRequest, cookieDomain } from "./authConfig";
 
 // Create MSAL instance
 const msalInstance = new PublicClientApplication(msalConfig);
-const cookieDomain = "zenblox.com.au";
 
 function AppContent() {
   const { instance, accounts } = useMsal();
-  const isAuthenticated = useIsAuthenticated();
+  let isAuthenticated = useIsAuthenticated();
   const account: AccountInfo | undefined = accounts[0];
 
   // Trigger login redirect
@@ -19,9 +18,13 @@ function AppContent() {
 
   // Trigger logout redirect
   const logout = async () => {
-    await cookieStore.delete("idToken");
-    await cookieStore.delete("preferred_username");
-    await instance.logoutRedirect();
+    await cookieStore.set({ name: "idToken", value: "", domain: cookieDomain });
+    await cookieStore.delete({ name: "idToken", domain: cookieDomain });
+    await cookieStore.delete({ name: "preferred_username", domain: cookieDomain });
+    console.log("logout");
+    sessionStorage.clear();
+    window.location.reload();
+    // await instance.logoutRedirect();
   };
 
   // const hasParentToken = (await cookieStore.getAll()).some(
@@ -32,7 +35,8 @@ function AppContent() {
 
   const insAccounts = instance.getAllAccounts();
   console.log("insAccounts:", insAccounts);
-  if (isAuthenticated && account) {
+  // if (isAuthenticated && account) {
+  if (account) {
     // Get ID token silently
 
     const response = async () => {
@@ -41,7 +45,7 @@ function AppContent() {
         account: accounts[0],
       });
     };
-    response().then(function (res) {
+    response().then(async function (res) {
       console.log(res);
       console.log(res?.idToken);
       // Set the ID token as a cookie
@@ -50,18 +54,21 @@ function AppContent() {
         // localStorage.setItem("idToken", res.idToken);
         // localStorage.setItem("preferred_username", idTokenClaims?.preferred_username || "");
         try {
-          cookieStore.set({
+          await cookieStore.set({
             name: "idToken",
             value: res.idToken || "",
             domain: cookieDomain,
           });
-          cookieStore.set({
+          await cookieStore.set({
             name: "preferred_username",
             value: idTokenClaims?.preferred_username || "",
             domain: cookieDomain,
           });
+          console.log(cookieDomain);
+          isAuthenticated = true;
         } catch (error) {
           console.log(`Error setting cookie1: ${error}`);
+          // logout();
         }
       }
     });
@@ -74,10 +81,10 @@ function AppContent() {
 
       {isAuthenticated && account && (
         <>
+          {/* <h3>ID Token Claims</h3>
+          <pre>{JSON.stringify(account.idTokenClaims, null, 2)}</pre> */}
+          <div>You are signed in as {account.username}</div>
           <button onClick={logout}>Sign out</button>
-
-          <h3>ID Token Claims</h3>
-          <pre>{JSON.stringify(account.idTokenClaims, null, 2)}</pre>
         </>
       )}
     </div>
