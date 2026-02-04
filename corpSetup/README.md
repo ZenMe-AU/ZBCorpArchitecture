@@ -75,6 +75,24 @@ This script (`initCorpEnvDeploy.js`) automates the setup and management of a cor
     - Imports existing resources if present (resource group, log analytics, DNS zone, diagnostics).
     - Applies Terraform to create or update these resources.
 
+- ### c11cloudfront (`--stage c11`)
+  - **Purpose:**
+    - Deploys and manages the corporate frontend website (login page), Lambda@Edge (authentication), CloudFront CDN, and related Azure/AWS integration resources.
+  - **Required `corp.env` parameters:**
+    - NAME
+    - SUBSCRIPTION_ID
+    - DNS
+  - **Prerequisites:**
+    1. You must have both AWS and Azure accounts.
+    2. Storage Account exists (requires `c05rootrg` to be completed first).
+  - **Actions:**
+    - Initializes Terraform backend using the root resource group and storage account.
+    - Installs dependencies and builds the SPA frontend and Lambda@Edge function.
+    - Runs Terraform apply to deploy all resources.
+  - **Notes:**
+    - If the Storage Account is not created, run the c05rootrg stage first.
+    - For AWS-related resources, ensure Terraform/Azure CLI/AWS CLI permissions and credentials are properly configured.
+
 ## Environment Variable Management
 
 - The script loads and updates `corp.env` for environment state.
