@@ -8,7 +8,6 @@
 import { execSync } from "child_process";
 import { existsSync, readFileSync, writeFileSync, readdirSync } from "fs";
 import { resolve, dirname } from "path";
-// import { uniqueNamesGenerator, adjectives, animals } from "unique-names-generator";
 import { getResourceGroupName, getLogAnalyticsWorkspaceName, getStorageAccountName } from "../util/namingConvention.cjs";
 import { getSubscriptionId, getDefaultAzureLocation, isStorageAccountNameAvailable } from "../util/azureCli.cjs";
 import minimist from "minimist";
@@ -159,11 +158,6 @@ function main() {
     console.log("tfStateList:", tfStateList);
     switch (workingDirName) {
       case "c01subscription": {
-        // check necessary parameters
-        // const corpName = env.get("NAME");
-        // if (!corpName) {
-        //   throw new Error("NAME is not set in corp.env.");
-        // }
         const subscription_name = `${corpName}-subscription`;
 
         // set terraform variables
@@ -177,33 +171,9 @@ function main() {
         execSync(`terraform init`, { stdio: "pipe", shell: true, cwd: resolve(__dirname, workingDirName) });
 
         // import existing resource
-        let subscriptionId =
-          // env.get("SUBSCRIPTION_ID") ?? execSync(`az account list --query "[?name=='${subscription_name}'].id" -o tsv`, { encoding: "utf8" }).trim();
-          env.get("SUBSCRIPTION_ID") ?? getSubscriptionId(subscription_name);
+        let subscriptionId = env.get("SUBSCRIPTION_ID") ?? getSubscriptionId(subscription_name);
 
         if (subscriptionId && subscriptionId.length > 0) {
-          // try {
-          //   // check if already imported
-          //   execSync(`terraform state show azurerm_subscription.payg`, {
-          //     stdio: "inherit",
-          //     shell: true,
-          //     cwd: resolve(__dirname, workingDirName),
-          //   });
-          // } catch {}
-
-          // try {
-          //   // check if already imported
-          //   execSync(`terraform state show azurerm_consumption_budget_subscription.payg_budget`, {
-          //     stdio: "inherit",
-          //     shell: true,
-          //     cwd: resolve(__dirname, workingDirName),
-          //   });
-          // } catch {}
-          console.log("azurerm_subscription.payg exists:", tfStateList.includes("azurerm_subscription.payg"));
-          console.log(
-            "azurerm_consumption_budget_subscription.payg_budget exists:",
-            tfStateList.includes("azurerm_consumption_budget_subscription.payg_budget")
-          );
           if (!tfStateList.includes("azurerm_subscription.payg")) {
             const aliasId = execSync(`az account alias list --query "value[?properties.subscriptionId=='${subscriptionId}'].id" -o tsv`, {
               encoding: "utf8",
@@ -215,11 +185,6 @@ function main() {
               shell: true,
               cwd: resolve(__dirname, workingDirName),
             });
-            // execSync(`terraform state show azurerm_subscription.payg`, {
-            //   stdio: "inherit",
-            //   shell: true,
-            //   cwd: resolve(__dirname, workingDirName),
-            // });
           }
           if (!tfStateList.includes("azurerm_consumption_budget_subscription.payg_budget")) {
             const budget = execSync(`az consumption budget list --subscription ${subscriptionId} --query "[?name=='monthly-budget'].name" -o tsv`, {
@@ -256,12 +221,9 @@ function main() {
         execSync(`terraform init`, { stdio: "pipe", shell: true, cwd: resolve(__dirname, workingDirName) });
         let rgDeployerId, leadDevId, dbAdminDevId, dbAdminTestId, dbAdminProdId;
         try {
-          // process.stdout.write("Checking ResourceGroupDeployer group...");
           rgDeployerId = execSync(`az ad group show --group "ResourceGroupDeployer" --query id -o tsv`, { encoding: "utf8", stdio: "pipe" }).trim();
-          // console.log("\x1b[32m" + " Found: " + rgDeployerId + "\x1b[0m");
         } catch (_) {
           rgDeployerId = null;
-          // console.log("\x1b[33m" + " Not found" + "\x1b[0m");
         }
         try {
           leadDevId = execSync(`az ad group show --group "LeadDeveloper" --query id -o tsv`, { encoding: "utf8", stdio: "pipe" }).trim();
@@ -611,11 +573,6 @@ function main() {
         execSync(`pnpm run build`, { stdio: "pipe", shell: true, cwd: bucketSpaSourceFolder });
         // install dependencies for lambda@edge
         execSync(`pnpm run build`, { stdio: "pipe", shell: true, cwd: lambdaEdgeAuthGuardSourceFolder });
-        // execSync(`npm install`, { stdio: "pipe", shell: true, cwd: lambdaEdgeAuthGuardSourceFolder });
-        // pnpm deploy --filter aws-lambda-edge --prod dist  --config.node-linker=hoisted --config.symlink=false --config.package-import-method=copy
-        // pnpm deploy --filter aws-lambda-edge --prod pkg  --no-optional --legacy --package-import-method=copy --config.node-linker=hoisted
-        // rsync -a --delete -c  --exclude='pnpm-lock.yaml' --exclude='node_modules/.pnpm/' --exclude='node_modules/.modules.yaml' --exclude='node_modules/.pnpm-workspace-state-v1.json' pkg/ dist/
-
         break;
       }
     }
