@@ -8,7 +8,7 @@
 
   ],
   "scripts": {
-    "prepare": "husky",
+    "prepare": "husky"
   },
   "devDependencies": {
     "@azure/identity": "^4.11.1",
