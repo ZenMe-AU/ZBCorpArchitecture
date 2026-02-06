@@ -35,8 +35,43 @@ function getSigningKeyAsync(kid) {
   });
 }
 
+function authFailedResponse({ isApiRequest, origin, returnTo }) {
+  if (isApiRequest) {
+    return {
+      status: "403",
+      statusDescription: "Forbidden",
+      headers: {
+        "content-type": [{ key: "Content-Type", value: "application/json" }],
+        ...(origin && {
+          "access-control-allow-origin": [{ key: "Access-Control-Allow-Origin", value: origin }],
+          "access-control-allow-credentials": [{ key: "Access-Control-Allow-Credentials", value: "true" }],
+          vary: [{ key: "Vary", value: "Origin" }],
+        }),
+      },
+      body: JSON.stringify({
+        code: "FORBIDDEN",
+        message: "Invalid or expired token",
+        loginUrl: AUTH_DOMAIN,
+      }),
+    };
+  }
+
+  return {
+    status: "302",
+    headers: {
+      location: [
+        {
+          key: "Location",
+          value: AUTH_DOMAIN + `?returnTo=${returnTo}`,
+        },
+      ],
+    },
+  };
+}
+
 export const handler = async (event) => {
   const request = event.Records[0].cf.request;
+  const isApiRequest = (request.headers.accept?.[0]?.value || "").includes("application/json");
   const cookieHeader = request.headers.cookie?.[0]?.value || "";
   const cookies = Object.fromEntries(
     cookieHeader.split(";").map((c) => {
@@ -45,9 +80,38 @@ export const handler = async (event) => {
     })
   );
 
+  const host = request.headers.host?.[0]?.value || "";
+  const uri = typeof request.uri === "string" ? request.uri : "/";
+  request.uri = uri;
+  const qs = request.querystring;
+
+  const returnTo = encodeURIComponent(qs ? `https://${host}${uri}?${qs}` : `https://${host}${uri}`);
+
+  const origin = request.headers?.origin?.[0]?.value || "";
+  // TODO: enable this check later
+  // const origin = (() => {
+  //   const reqOrigin = request.headers?.origin?.[0]?.value || "";
+  //   if (reqOrigin.startsWith("https://") && reqOrigin.endsWith(ALLOWED_ORIGIN_SUFFIX)) {
+  //     return reqOrigin;
+  //   }
+  //   return "";
+  // })();
+  const method = request.method.toUpperCase();
+  if (method === "OPTIONS") {
+    return {
+      status: "204",
+      headers: {
+        "access-control-allow-origin": [{ key: "Access-Control-Allow-Origin", value: origin }],
+        "access-control-allow-methods": [{ key: "Access-Control-Allow-Methods", value: "GET,POST,OPTIONS" }],
+        "access-control-allow-headers": [{ key: "Access-Control-Allow-Headers", value: "Authorization,X-Correlation-Id,Content-Type,Accept" }],
+        "access-control-allow-credentials": [{ key: "Access-Control-Allow-Credentials", value: "true" }],
+        vary: [{ key: "Vary", value: "Origin" }],
+      },
+    };
+  }
   const idToken = cookies["idToken"];
   if (!idToken) {
-    return { status: "302", headers: { location: [{ key: "Location", value: AUTH_DOMAIN }] } };
+    return authFailedResponse({ isApiRequest, origin, returnTo });
   }
 
   try {
@@ -65,15 +129,12 @@ export const handler = async (event) => {
     console.log("JWT verified:", verified.sub);
   } catch (err) {
     console.log("JWT verify failed:", err.message);
-    return { status: "302", headers: { location: [{ key: "Location", value: AUTH_DOMAIN }] } };
+    return authFailedResponse({ isApiRequest, origin, returnTo });
   }
 
   try {
-    const host = request.headers.host?.[0]?.value || "";
-    const path = request.uri;
-
     request.headers["x-forwarded-host"] = [{ key: "X-Forwarded-Host", value: host }];
-    request.headers["x-forwarded-path"] = [{ key: "X-Forwarded-Path", value: path }];
+    request.headers["x-forwarded-path"] = [{ key: "X-Forwarded-Path", value: uri }];
 
     return request;
   } catch (err) {

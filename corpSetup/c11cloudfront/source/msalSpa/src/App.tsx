@@ -7,6 +7,23 @@ import { msalConfig, loginRequest, cookieDomain } from "./authConfig";
 const msalInstance = new PublicClientApplication(msalConfig);
 
 function AppContent() {
+  const params = new URLSearchParams(window.location.search);
+  const rawReturnTo = params.get("returnTo");
+
+  let returnTo = "/";
+
+  if (rawReturnTo) {
+    try {
+      const decoded = decodeURIComponent(rawReturnTo);
+      const url = new URL(decoded);
+      console.log("Return to URL:", url);
+      if (url.protocol === "https:" && url.host.endsWith(cookieDomain)) {
+        returnTo = decoded;
+      }
+    } catch {}
+  }
+
+  sessionStorage.setItem("returnTo", returnTo);
   const { instance, accounts } = useMsal();
   let isAuthenticated = useIsAuthenticated();
   const account: AccountInfo | undefined = accounts[0];
@@ -83,6 +100,7 @@ function AppContent() {
         <>
           {/* <h3>ID Token Claims</h3>
           <pre>{JSON.stringify(account.idTokenClaims, null, 2)}</pre> */}
+          {returnTo && returnTo !== "/" && <button onClick={() => window.location.replace(returnTo)}>Go Back</button>}
           <div>You are signed in as {account.username}</div>
           <button onClick={logout}>Sign out</button>
         </>
