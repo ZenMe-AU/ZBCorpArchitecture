@@ -117,3 +117,21 @@ variable "tenant_id" {
   type        = string
   default     = "15fb0613-7977-4551-801b-6aadac824241"
 }
+
+variable "cf_unavailable_name" {
+  description = "The name of the CloudFront for unavailable page"
+  type        = string
+  # default     = "z3nm3-cf-unavailable-log"
+}
+
+variable "cf_login_name" {
+  description = "The name of the CloudFront for login page"
+  type        = string
+  # default     = "z3nm3-cf-login-log"
+}
+
+variable "cf_prod_name" {
+  description = "The name of the CloudFront for prod page"
+  type        = string
+  # default     = "z3nm3-cf-prod-log"
+}

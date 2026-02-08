@@ -130,16 +130,10 @@ resource "aws_iam_role_policy_attachment" "lambda_edge_auth_guard_policy" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
-# TODO: Enable CloudWatch Logs for Lambda@Edges
-# resource "aws_cloudwatch_log_group" "lambda_edge_auth_guard_logs" {
-#   name              = "/aws/lambda/${var.lambda_edge_auth_guard_name}"
-#   retention_in_days = 14
-
-#   # tags = {
-#   #   Environment = "production"
-#   #   Application = var.lambda_edge_auth_guard_name
-#   # }
-# }
+resource "aws_cloudwatch_log_group" "lambda_edge_auth_guard_logs" {
+  name              = "/aws/lambda/${var.lambda_edge_auth_guard_name}"
+  retention_in_days = 14
+}
 
 data "archive_file" "edge_zip" {
   type        = "zip"
@@ -163,7 +157,7 @@ resource "aws_lambda_function" "viewer_request" {
 
   depends_on = [
     aws_iam_role_policy_attachment.lambda_edge_auth_guard_policy,
-    # aws_cloudwatch_log_group.lambda_edge_auth_guard_logs
+    aws_cloudwatch_log_group.lambda_edge_auth_guard_logs
   ]
 }
 
@@ -281,6 +275,33 @@ resource "aws_acm_certificate_validation" "cf_prod" {
 #==========================================================
 # CloudFront Distribution for Static Website
 #==========================================================
+resource "aws_cloudwatch_log_group" "cf_unavailable_logs" {
+  name              = "/aws/cloudfront/distribution/${var.cf_unavailable_name}"
+  retention_in_days = 90
+}
+
+resource "aws_cloudwatch_log_delivery_source" "website" {
+  region       = "us-east-1"
+  name         = var.cf_unavailable_name
+  log_type     = "ACCESS_LOGS"
+  resource_arn = aws_cloudfront_distribution.website.arn
+}
+
+resource "aws_cloudwatch_log_delivery_destination" "website" {
+  region        = "us-east-1"
+  name          = var.cf_unavailable_name
+  output_format = "json"
+
+  delivery_destination_configuration {
+    destination_resource_arn = aws_cloudwatch_log_group.cf_unavailable_logs.arn
+  }
+}
+
+resource "aws_cloudwatch_log_delivery" "website" {
+  region                   = "us-east-1"
+  delivery_source_name     = aws_cloudwatch_log_delivery_source.website.name
+  delivery_destination_arn = aws_cloudwatch_log_delivery_destination.website.arn
+}
 resource "aws_cloudfront_origin_access_control" "oac_website" {
   name                              = var.cloudfront_oac_static_website_name
   origin_access_control_origin_type = "s3"
@@ -296,6 +317,10 @@ resource "aws_cloudfront_distribution" "website" {
   depends_on = [
     aws_acm_certificate_validation.cf
   ]
+
+ tags = {
+    Name = var.cf_unavailable_name
+  }
 
   aliases = [
     "unavailable.${var.dns_name}"
@@ -340,6 +365,12 @@ resource "aws_cloudfront_distribution" "website" {
       locations        = []
     }
   }
+
+  # logging_config {
+  #   bucket = "${aws_s3_bucket.cf_logs["unavailable"].bucket_domain_name}"
+  #   prefix = "access/"
+  #   include_cookies = false
+  # }
 }
 # combined policy for website and prod distributions
 # resource "aws_s3_bucket_policy" "static_website" {
@@ -400,10 +431,41 @@ resource "aws_cloudfront_cache_policy" "html_no_cache" {
   }
 }
 
+resource "aws_cloudwatch_log_group" "cf_login_logs" {
+  name              = "/aws/cloudfront/distribution/${var.cf_login_name}"
+  retention_in_days = 90
+}
+
+resource "aws_cloudwatch_log_delivery_source" "login" {
+  region       = "us-east-1"
+  name         = var.cf_login_name
+  log_type     = "ACCESS_LOGS"
+  resource_arn = aws_cloudfront_distribution.spa.arn
+}
+
+resource "aws_cloudwatch_log_delivery_destination" "login" {
+  region        = "us-east-1"
+  name          = var.cf_login_name
+  output_format = "json"
+
+  delivery_destination_configuration {
+    destination_resource_arn = aws_cloudwatch_log_group.cf_login_logs.arn
+  }
+}
+
+resource "aws_cloudwatch_log_delivery" "login" {
+  region                   = "us-east-1"
+  delivery_source_name     = aws_cloudwatch_log_delivery_source.login.name
+  delivery_destination_arn = aws_cloudwatch_log_delivery_destination.login.arn
+}
+
 resource "aws_cloudfront_distribution" "spa" {
   depends_on = [
     aws_acm_certificate_validation.cf
   ]
+ tags = {
+    Name = var.cf_login_name
+  }
 
   aliases = [
     "login.${var.dns_name}"
@@ -450,6 +512,12 @@ resource "aws_cloudfront_distribution" "spa" {
       locations        = []
     }
   }
+
+  # logging_config {
+  #   bucket = "${aws_s3_bucket.cf_logs["login"].bucket_domain_name}"
+  #   prefix = "access/"
+  #   include_cookies = false
+  # }
 }
 
 resource "azurerm_dns_cname_record" "spa_cloudfront" {
@@ -489,7 +557,39 @@ resource "aws_s3_bucket_policy" "spa" {
 # CloudFront Distribution for prod
 #==========================================================
 
+resource "aws_cloudwatch_log_group" "cf_prod_logs" {
+  name              = "/aws/cloudfront/distribution/${var.cf_prod_name}"
+  retention_in_days = 90
+}
+
+resource "aws_cloudwatch_log_delivery_source" "prod" {
+  region       = "us-east-1"
+  name         = var.cf_prod_name
+  log_type     = "ACCESS_LOGS"
+  resource_arn = aws_cloudfront_distribution.prod.arn
+}
+
+resource "aws_cloudwatch_log_delivery_destination" "prod" {
+  region        = "us-east-1"
+  name          = var.cf_prod_name
+  output_format = "json"
+
+  delivery_destination_configuration {
+    destination_resource_arn = aws_cloudwatch_log_group.cf_prod_logs.arn
+  }
+}
+
+resource "aws_cloudwatch_log_delivery" "prod" {
+  region                   = "us-east-1"
+  delivery_source_name     = aws_cloudwatch_log_delivery_source.prod.name
+  delivery_destination_arn = aws_cloudwatch_log_delivery_destination.prod.arn
+}
+
 resource "aws_cloudfront_distribution" "prod" {
+  tags = {
+    Name = var.cf_prod_name
+  }
+
   depends_on = [
     aws_acm_certificate_validation.cf_prod
   ]
@@ -539,6 +639,12 @@ resource "aws_cloudfront_distribution" "prod" {
       locations        = []
     }
   }
+
+  # logging_config {
+  #   bucket = "${aws_s3_bucket.cf_logs["prod"].bucket_domain_name}"
+  #   prefix = "access/"
+  #   include_cookies = false
+  # }
 }
 
 resource "aws_s3_bucket_policy" "static_website" {

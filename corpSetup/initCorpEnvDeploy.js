@@ -547,6 +547,9 @@ function main() {
         const cloudfrontOacSpaName = `${corpName}-loginSpa-oac`;
         const appRegistrationName = `${corpName}-login`;
         const originRequestPolicyName = `${corpName}-origin-request-policy`;
+        const cfUnavailableName = `${corpName}-cf-unavailable`;
+        const cfLoginName = `${corpName}-cf-login`;
+        const cfProdName = `${corpName}-cf-prod`;
         setTfVar("bucket_static_website_name", bucketStaticWebsiteName);
         setTfVar("bucket_spa_name", bucketSpaName);
         setTfVar("bucket_static_website_source_folder", bucketStaticWebsiteSourceFolder);
@@ -558,6 +561,9 @@ function main() {
         setTfVar("cloudfront_oac_spa_name", cloudfrontOacSpaName);
         setTfVar("app_registration_name", appRegistrationName);
         setTfVar("origin_request_policy_name", originRequestPolicyName);
+        setTfVar("cf_unavailable_name", cfUnavailableName);
+        setTfVar("cf_login_name", cfLoginName);
+        setTfVar("cf_prod_name", cfProdName);
 
         execSync(
           `terraform init -reconfigure\
