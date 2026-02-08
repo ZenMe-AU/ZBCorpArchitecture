@@ -8,7 +8,18 @@
 import { execSync } from "child_process";
 import { existsSync, readFileSync, writeFileSync, readdirSync } from "fs";
 import { resolve, dirname } from "path";
-import { getResourceGroupName, getLogAnalyticsWorkspaceName, getStorageAccountName } from "../util/namingConvention.cjs";
+import {
+  getResourceGroupName,
+  getLogAnalyticsWorkspaceName,
+  getStorageAccountName,
+  getBucketName,
+  getLambdaFunctionName,
+  getCloudfrontDistributionName,
+  getLambdaFunctionRoleName,
+  getCloudfrontOriginAccessControlName,
+  getOriginRequestPolicyName,
+  getAppRegistrationName,
+} from "../util/namingConvention.cjs";
 import { getSubscriptionId, getDefaultAzureLocation, isStorageAccountNameAvailable } from "../util/azureCli.cjs";
 import minimist from "minimist";
 import { fileURLToPath } from "url";
@@ -535,16 +546,32 @@ function main() {
         setTfVar("subscription_id", subscriptionId);
         setTfVar("dns_name", dnsName);
         setTfVar("resource_group_name", resourceGroupName);
-        // TODO: move to naming convention
-        const bucketStaticWebsiteName = `${corpName}-web`;
-        const bucketSpaName = `${corpName}-loginSpa`;
         const bucketStaticWebsiteSourceFolder = resolve(__dirname, workingDirName, "source", "webpage");
         const bucketSpaSourceFolder = resolve(__dirname, workingDirName, "source", "msalSpa");
+        const lambdaEdgeAuthGuardSourceFolder = resolve(__dirname, workingDirName, "source", "authGuardLambdaEdge");
+
+        setTfVar("app_registration_name", getAppRegistrationName(corpName, "login"));
+        setTfVar("bucket_static_website_source_folder", bucketStaticWebsiteSourceFolder);
+        setTfVar("bucket_spa_source_folder", bucketSpaSourceFolder);
+        setTfVar("lambda_edge_auth_guard_source_folder", lambdaEdgeAuthGuardSourceFolder);
+        setTfVar("bucket_static_website_name", getBucketName(corpName, "web"));
+        setTfVar("bucket_spa_name", getBucketName(corpName, "login"));
+        setTfVar("lambda_edge_auth_guard_name", getLambdaFunctionName(corpName, "guard"));
+        setTfVar("lambda_edge_auth_guard_role", getLambdaFunctionRoleName(corpName, "guard"));
+        setTfVar("cf_unavailable_name", getCloudfrontDistributionName(corpName, "unavailable"));
+        setTfVar("cf_login_name", getCloudfrontDistributionName(corpName, "login"));
+        setTfVar("cf_prod_name", getCloudfrontDistributionName(corpName, "prod"));
+        setTfVar("cloudfront_oac_static_website_name", getCloudfrontOriginAccessControlName(corpName, "web"));
+        setTfVar("cloudfront_oac_spa_name", getCloudfrontOriginAccessControlName(corpName, "login"));
+        setTfVar("origin_request_policy_name", getOriginRequestPolicyName(corpName, "restricted"));
+
+        // TODO: remove hardcoded names after confirming the tf stable and import logic works as expected
+        const bucketStaticWebsiteName = `${corpName}-web`;
+        const bucketSpaName = `${corpName}-login`;
         const lambdaEdgeAuthGuardRole = `${corpName}-authGuard-func-role`;
         const lambdaEdgeAuthGuardName = `${corpName}-authGuard-func`;
-        const lambdaEdgeAuthGuardSourceFolder = resolve(__dirname, workingDirName, "source", "authGuardLambdaEdge");
         const cloudfrontOacStaticWebsiteName = `${corpName}-web-oac`;
-        const cloudfrontOacSpaName = `${corpName}-loginSpa-oac`;
+        const cloudfrontOacSpaName = `${corpName}-login-oac`;
         const appRegistrationName = `${corpName}-login`;
         const originRequestPolicyName = `${corpName}-origin-request-policy`;
         const cfUnavailableName = `${corpName}-cf-unavailable`;
@@ -564,7 +591,7 @@ function main() {
         setTfVar("cf_unavailable_name", cfUnavailableName);
         setTfVar("cf_login_name", cfLoginName);
         setTfVar("cf_prod_name", cfProdName);
-
+        //==============================================================
         execSync(
           `terraform init -reconfigure\
             -backend-config="resource_group_name=${resourceGroupName}" \
@@ -579,6 +606,15 @@ function main() {
         execSync(`pnpm run build`, { stdio: "pipe", shell: true, cwd: bucketSpaSourceFolder });
         // install dependencies for lambda@edge
         execSync(`pnpm run build`, { stdio: "pipe", shell: true, cwd: lambdaEdgeAuthGuardSourceFolder });
+
+        // if (!tfStateList.includes("aws_cloudwatch_log_group.lambda_edge_auth_guard_logs ")) {
+        //   execSync(`terraform import aws_cloudwatch_log_group.lambda_edge_auth_guard_logs /aws/lambda/${lambdaEdgeAuthGuardName}`, {
+        //     stdio: "inherit",
+        //     shell: true,
+        //     cwd: resolve(__dirname, workingDirName),
+        //   });
+        // }
+
         break;
       }
     }
