@@ -30,7 +30,7 @@ export const msalConfig: Configuration = {
     redirectUri: cfg.redirectUri,
   },
   cache: {
-    cacheLocation: "sessionStorage", // easier for local dev
+    cacheLocation: "localStorage",
     storeAuthStateInCookie: false,
   },
 };

@@ -40,6 +40,7 @@ function AppContent() {
     await cookieStore.delete({ name: "preferred_username", domain: cookieDomain });
     console.log("logout");
     sessionStorage.clear();
+    localStorage.clear();
     window.location.reload();
     // await instance.logoutRedirect();
   };
