@@ -43,6 +43,13 @@ resource "local_file" "guard_config" {
     auth_domain = "https://login.${var.dns_name}/"
   })
 }
+resource "local_file" "guard_html" {
+  filename = "${var.lambda_edge_auth_guard_source_folder}/dist/login.html"
+
+  content = templatefile("${var.lambda_edge_auth_guard_source_folder}/template/login.html.tpl", {
+    auth_domain = "https://login.${var.dns_name}/"
+  })
+}
 
 #==========================================================
 # aws_acm_certificate

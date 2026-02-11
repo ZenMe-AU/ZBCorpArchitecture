@@ -2,6 +2,7 @@
 import jwt from "jsonwebtoken";
 import jwksClient from "jwks-rsa";
 import { CLIENT_ID, TENANT_ID, AUTH_DOMAIN } from "./config.mjs";
+import fs from "fs";
 
 // Microsoft JWKS client
 const msJwks = jwksClient({
@@ -26,24 +27,14 @@ function authFailedResponse({ request, origin, returnTo }) {
   const mode = request.headers["sec-fetch-mode"]?.[0]?.value;
   // Check if it's a navigation request for document, if so, return an HTML response with a link to login
   if (dest === "document" && mode === "navigate") {
+    const html = fs.readFileSync("login.html", "utf-8");
     return {
       status: "200",
       statusDescription: "OK",
       headers: {
         "content-type": [{ key: "Content-Type", value: "text/html; charset=utf-8" }],
       },
-      body: `
-            <!DOCTYPE html>
-            <html lang="en">
-            <head>
-                <meta charset="UTF-8">
-                <title>Access Denied</title>
-            </head>
-            <body>
-                <p>Please <a href="${AUTH_DOMAIN}">click here</a> to continue.</p>
-            </body>
-            </html>
-        `,
+      body: html,
     };
   }
   return {
