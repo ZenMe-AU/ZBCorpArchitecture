@@ -19,6 +19,7 @@ import {
   getCloudfrontOriginAccessControlName,
   getOriginRequestPolicyName,
   getAppRegistrationName,
+  getAppInsightsName,
 } from "../util/namingConvention.cjs";
 import { getSubscriptionId, getDefaultAzureLocation, isStorageAccountNameAvailable } from "../util/azureCli.cjs";
 import minimist from "minimist";
@@ -385,12 +386,14 @@ function main() {
         const resourceGroupName = getResourceGroupName("root", corpName);
         const logAnalyticsWorkspaceName = getLogAnalyticsWorkspaceName(corpName);
         const storageAccountName = getStorageAccountName(corpName);
+        const appInsightsName = getAppInsightsName(corpName);
         setTfVar("subscription_id", subscriptionId);
         setTfVar("dns_name", dnsName);
         setTfVar("location", location);
         setTfVar("resource_group_name", resourceGroupName);
         setTfVar("log_analytics_workspace_name", logAnalyticsWorkspaceName);
         setTfVar("storage_account_name", storageAccountName);
+        setTfVar("app_insights_name", appInsightsName);
 
         execSync(`terraform init`, { stdio: "pipe", shell: true, cwd: resolve(__dirname, workingDirName) });
 
@@ -518,6 +521,27 @@ function main() {
                 );
               }
             }
+          }
+        }
+        // Importing Application Insights if exists and not already in tfstate.
+        if (!tfStateList.includes("azurerm_application_insights.appinsights")) {
+          const isExisting = !!execSync(
+            `az monitor app-insights component show --app ${appInsightsName} --resource-group ${resourceGroupName} --query "id" -o tsv`,
+            {
+              encoding: "utf8",
+              stdio: "pipe",
+            }
+          ).trim();
+          if (isExisting) {
+            console.log("Importing existing Application Insights: ", appInsightsName);
+            execSync(
+              `terraform import azurerm_application_insights.appinsights "/subscriptions/${subscriptionId}/resourceGroups/${resourceGroupName}/providers/Microsoft.Insights/components/${appInsightsName}"`,
+              {
+                stdio: "pipe",
+                shell: true,
+                cwd: resolve(__dirname, workingDirName),
+              }
+            );
           }
         }
         break;
