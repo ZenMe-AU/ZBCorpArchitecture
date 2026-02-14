@@ -7,9 +7,9 @@ const ANCHOR_KEY = "nav_anchor_page";
 /**
  * Hook: Record anchor page and history stack depth
  * - Only stores pages on the same subdomain
- * - Returns boolean `hasAnchor` indicating if Go Back button should be shown
+ * - Returns {hasAnchor: boolean} indicating if Go Back button should be shown
  */
-export function useAnchorPage(): boolean {
+export function useAnchorPage(): { hasAnchor: boolean } {
   const [hasAnchor, setHasAnchor] = useState<boolean>(false);
 
   useEffect(() => {
@@ -32,7 +32,7 @@ export function useAnchorPage(): boolean {
     }
   }, []);
 
-  return hasAnchor;
+  return { hasAnchor };
 }
 
 /**
