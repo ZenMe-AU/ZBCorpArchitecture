@@ -28,6 +28,7 @@ resource "local_file" "config_js" {
   filename = "${var.bucket_spa_source_folder}/config.js"
 
   content = templatefile("${var.bucket_spa_source_folder}/template/config.js.tpl", {
+    tenant_id = var.tenant_id
     client_id = azuread_application.msal_spa.client_id
     redirect_uri = "https://login.${var.dns_name}/"
     domain_name = var.dns_name
@@ -709,6 +710,9 @@ resource "aws_cloudfront_origin_request_policy" "apim_policy" {
         "X-Forwarded-Host",
         "X-Forwarded-Path",
         "X-Forwarded-Subdomain",
+        "X-Auth-Token",
+        "X-Correlation-Id",
+        "X-Profile-Id"
       ]
     }
   }
