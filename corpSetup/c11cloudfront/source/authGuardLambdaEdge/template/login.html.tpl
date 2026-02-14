@@ -88,7 +88,9 @@
     <!-- Auto-reload script -->
     <script>
       window.addEventListener("pageshow", function (event) {
-        if (event.persisted) {
+        // This reload the page if loaded from cache and online. There is a small risk of infinite loop, to be investigated.
+        if (event.persisted && navigator.onLine) {
+          console.log("Page is ready to reload.");
           window.location.reload();
         }
       });
