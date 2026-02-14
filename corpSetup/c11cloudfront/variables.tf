@@ -115,7 +115,7 @@ variable "origin_request_policy_name" {
 variable "tenant_id" {
   description = "The Azure AD Tenant ID"
   type        = string
-  default     = "15fb0613-7977-4551-801b-6aadac824241"
+  # default     = "15fb0613-7977-4551-801b-6aadac824241"
 }
 
 variable "cf_unavailable_name" {

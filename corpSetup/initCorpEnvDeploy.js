@@ -555,6 +555,7 @@ function main() {
         if (!dnsName) {
           throw new Error("DNS is not set in corp.env.");
         }
+        const tenantId = execSync(`az account show --query tenantId -o tsv`, { encoding: "utf8", stdio: "pipe" }).trim();
         const accSubscriptionId = getSubscriptionId();
         if (accSubscriptionId !== subscriptionId) {
           execSync(`az account set --subscription ${subscriptionId}`, { stdio: "pipe", shell: true });
@@ -567,6 +568,7 @@ function main() {
         } catch {
           throw new Error(`Storage Account ${storageAccountName} is not found. Please run c05rootrg stage first.`);
         }
+        setTfVar("tenant_id", tenantId);
         setTfVar("subscription_id", subscriptionId);
         setTfVar("dns_name", dnsName);
         setTfVar("resource_group_name", resourceGroupName);
