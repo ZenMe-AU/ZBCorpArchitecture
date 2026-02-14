@@ -573,7 +573,7 @@ function main() {
         setTfVar("dns_name", dnsName);
         setTfVar("resource_group_name", resourceGroupName);
         const bucketStaticWebsiteSourceFolder = resolve(__dirname, workingDirName, "source", "webpage");
-        const bucketSpaSourceFolder = resolve(__dirname, workingDirName, "source", "msalSpa");
+        const bucketSpaSourceFolder = resolve(__dirname, workingDirName, "source", "loginApp");
         const lambdaEdgeAuthGuardSourceFolder = resolve(__dirname, workingDirName, "source", "authGuardLambdaEdge");
 
         setTfVar("app_registration_name", getAppRegistrationName(corpName, "login"));

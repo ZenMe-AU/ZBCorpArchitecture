@@ -47,7 +47,7 @@ variable "bucket_static_website_source_folder" {
 variable "bucket_spa_source_folder" {
   description = "The source folder for the SPA files"
   type        = string
-  # default     = "source/msalSpa"
+  # default     = "source/loginApp"
 }
 
 variable "lambda_edge_auth_guard_role" {
