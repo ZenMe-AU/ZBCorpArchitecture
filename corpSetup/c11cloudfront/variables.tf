@@ -68,6 +68,24 @@ variable "lambda_edge_auth_guard_name" {
   # default     = "asleepswordtail-authGuard-func"
 }
 
+variable "lambda_edge_rewrite_header_role" {
+  description = "The IAM role for the AWS Lambda@Edge rewrite header function"
+  type        = string
+  # default     = "asleepswordtail-rewriteHeader-func-role"
+}
+
+variable "lambda_edge_rewrite_header_source_folder" {
+  description = "The source folder for the AWS Lambda@Edge rewrite header function"
+  type        = string
+  # default     = "source/rewriteHeaderLambdaEdge"
+}
+
+variable "lambda_edge_rewrite_header_name" {
+  description = "The name of the AWS Lambda@Edge rewrite header function"
+  type        = string
+  # default     = "asleepswordtail-rewriteHeader-func"
+}
+
 variable "dns_name" {
   description = "The DNS name for the corporate website"
   type        = string
