@@ -61,8 +61,10 @@ function handleOptionsRequest(origin) {
     status: "204",
     headers: {
       "access-control-allow-origin": [{ key: "Access-Control-Allow-Origin", value: origin }],
-      "access-control-allow-methods": [{ key: "Access-Control-Allow-Methods", value: "*" }],
-      "access-control-allow-headers": [{ key: "Access-Control-Allow-Headers", value: "Authorization,X-Correlation-Id,Content-Type,Accept" }],
+      "access-control-allow-methods": [{ key: "Access-Control-Allow-Methods", value: "GET,POST,PUT,PATCH,DELETE,OPTIONS" }],
+      "access-control-allow-headers": [
+        { key: "Access-Control-Allow-Headers", value: "Accept, Authorization, Content-Type, X-Auth-Token, X-Correlation-Id, X-Profile-Id" },
+      ],
       "access-control-allow-credentials": [{ key: "Access-Control-Allow-Credentials", value: "true" }],
       vary: [{ key: "Vary", value: "Origin" }],
     },
@@ -108,10 +110,12 @@ export const handler = async (event) => {
     console.log("Token verify failed:", err.message);
     return authFailedResponse({ request, origin, returnTo });
   }
-  // Add x-forwarded-host and x-forwarded-path headers used by downstream proxy routing
+  // Add x-forwarded-host and x-forwarded-path and x-forwarded-subdomain headers used by downstream proxy routing
   try {
+    const subdomain = host.split(".")[0];
     request.headers["x-forwarded-host"] = [{ key: "X-Forwarded-Host", value: host }];
     request.headers["x-forwarded-path"] = [{ key: "X-Forwarded-Path", value: uri }];
+    request.headers["x-forwarded-subdomain"] = [{ key: "X-Forwarded-Subdomain", value: subdomain }];
     return request;
   } catch (err) {
     console.error("Error while setting x-forwarded-host headers.", err);
