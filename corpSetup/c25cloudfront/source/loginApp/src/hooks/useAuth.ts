@@ -14,7 +14,6 @@ export function useAuth() {
   const account = accounts[0];
 
   useEffect(() => {
-    console.log("Auth state changed. isAuthenticated:", isAuthenticated, "account:", account, "inProgress:", inProgress);
     if (inProgress !== "none") return;
     if (!isAuthenticated || !account) return;
 
