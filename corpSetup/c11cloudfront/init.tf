@@ -29,7 +29,7 @@ provider "azurerm" {
 
 provider "azuread" {}
 
-terraform {
-  backend "azurerm" {
-  }
-}
+# terraform {
+#   backend "azurerm" {
+#   }
+#  }
