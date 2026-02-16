@@ -19,6 +19,7 @@ import {
   getCloudfrontOriginAccessControlName,
   getOriginRequestPolicyName,
   getAppRegistrationName,
+  getAppInsightsName,
 } from "../util/namingConvention.cjs";
 import { getSubscriptionId, getDefaultAzureLocation, isStorageAccountNameAvailable } from "../util/azureCli.cjs";
 import minimist from "minimist";
@@ -385,12 +386,14 @@ function main() {
         const resourceGroupName = getResourceGroupName("root", corpName);
         const logAnalyticsWorkspaceName = getLogAnalyticsWorkspaceName(corpName);
         const storageAccountName = getStorageAccountName(corpName);
+        const appInsightsName = getAppInsightsName(corpName);
         setTfVar("subscription_id", subscriptionId);
         setTfVar("dns_name", dnsName);
         setTfVar("location", location);
         setTfVar("resource_group_name", resourceGroupName);
         setTfVar("log_analytics_workspace_name", logAnalyticsWorkspaceName);
         setTfVar("storage_account_name", storageAccountName);
+        setTfVar("app_insights_name", appInsightsName);
 
         execSync(`terraform init`, { stdio: "pipe", shell: true, cwd: resolve(__dirname, workingDirName) });
 
@@ -520,6 +523,27 @@ function main() {
             }
           }
         }
+        // Importing Application Insights if exists and not already in tfstate.
+        if (!tfStateList.includes("azurerm_application_insights.appinsights")) {
+          const isExisting = !!execSync(
+            `az monitor app-insights component show --app ${appInsightsName} --resource-group ${resourceGroupName} --query "id" -o tsv`,
+            {
+              encoding: "utf8",
+              stdio: "pipe",
+            }
+          ).trim();
+          if (isExisting) {
+            console.log("Importing existing Application Insights: ", appInsightsName);
+            execSync(
+              `terraform import azurerm_application_insights.appinsights "/subscriptions/${subscriptionId}/resourceGroups/${resourceGroupName}/providers/Microsoft.Insights/components/${appInsightsName}"`,
+              {
+                stdio: "pipe",
+                shell: true,
+                cwd: resolve(__dirname, workingDirName),
+              }
+            );
+          }
+        }
         break;
       }
       case "c11cloudfront": {
@@ -531,6 +555,7 @@ function main() {
         if (!dnsName) {
           throw new Error("DNS is not set in corp.env.");
         }
+        const tenantId = execSync(`az account show --query tenantId -o tsv`, { encoding: "utf8", stdio: "pipe" }).trim();
         const accSubscriptionId = getSubscriptionId();
         if (accSubscriptionId !== subscriptionId) {
           execSync(`az account set --subscription ${subscriptionId}`, { stdio: "pipe", shell: true });
@@ -543,21 +568,26 @@ function main() {
         } catch {
           throw new Error(`Storage Account ${storageAccountName} is not found. Please run c05rootrg stage first.`);
         }
+        setTfVar("tenant_id", tenantId);
         setTfVar("subscription_id", subscriptionId);
         setTfVar("dns_name", dnsName);
         setTfVar("resource_group_name", resourceGroupName);
         const bucketStaticWebsiteSourceFolder = resolve(__dirname, workingDirName, "source", "webpage");
-        const bucketSpaSourceFolder = resolve(__dirname, workingDirName, "source", "msalSpa");
+        const bucketSpaSourceFolder = resolve(__dirname, workingDirName, "source", "loginApp");
         const lambdaEdgeAuthGuardSourceFolder = resolve(__dirname, workingDirName, "source", "authGuardLambdaEdge");
+        const lambdaEdgeRewriteHeaderSourceFolder = resolve(__dirname, workingDirName, "source", "rewriteHeaderLambdaEdge");
 
         setTfVar("app_registration_name", getAppRegistrationName(corpName, "login"));
         setTfVar("bucket_static_website_source_folder", bucketStaticWebsiteSourceFolder);
         setTfVar("bucket_spa_source_folder", bucketSpaSourceFolder);
         setTfVar("lambda_edge_auth_guard_source_folder", lambdaEdgeAuthGuardSourceFolder);
+        setTfVar("lambda_edge_rewrite_header_source_folder", lambdaEdgeRewriteHeaderSourceFolder);
         setTfVar("bucket_static_website_name", getBucketName(corpName, "web"));
         setTfVar("bucket_spa_name", getBucketName(corpName, "login"));
         setTfVar("lambda_edge_auth_guard_name", getLambdaFunctionName(corpName, "guard"));
         setTfVar("lambda_edge_auth_guard_role", getLambdaFunctionRoleName(corpName, "guard"));
+        setTfVar("lambda_edge_rewrite_header_role", getLambdaFunctionRoleName(corpName, "rewriteHeader"));
+        setTfVar("lambda_edge_rewrite_header_name", getLambdaFunctionName(corpName, "rewriteHeader"));
         setTfVar("cf_unavailable_name", getCloudfrontDistributionName(corpName, "unavailable"));
         setTfVar("cf_login_name", getCloudfrontDistributionName(corpName, "login"));
         setTfVar("cf_prod_name", getCloudfrontDistributionName(corpName, "prod"));

@@ -28,6 +28,7 @@ resource "local_file" "config_js" {
   filename = "${var.bucket_spa_source_folder}/config.js"
 
   content = templatefile("${var.bucket_spa_source_folder}/template/config.js.tpl", {
+    tenant_id = var.tenant_id
     client_id = azuread_application.msal_spa.client_id
     redirect_uri = "https://login.${var.dns_name}/"
     domain_name = var.dns_name
@@ -40,6 +41,13 @@ resource "local_file" "guard_config" {
   content = templatefile("${var.lambda_edge_auth_guard_source_folder}/template/config.js.tpl", {
     client_id = azuread_application.msal_spa.client_id
     tenant_id = var.tenant_id
+    auth_domain = "https://login.${var.dns_name}/"
+  })
+}
+resource "local_file" "guard_html" {
+  filename = "${var.lambda_edge_auth_guard_source_folder}/dist/login.html"
+
+  content = templatefile("${var.lambda_edge_auth_guard_source_folder}/template/login.html.tpl", {
     auth_domain = "https://login.${var.dns_name}/"
   })
 }
@@ -160,6 +168,46 @@ resource "aws_lambda_function" "viewer_request" {
     aws_cloudwatch_log_group.lambda_edge_auth_guard_logs
   ]
 }
+
+resource "aws_iam_role" "lambda_edge_rewrite_header" {
+  name = var.lambda_edge_rewrite_header_role
+  assume_role_policy = data.aws_iam_policy_document.lambda_edge_assume_role.json
+}
+
+resource "aws_iam_role_policy_attachment" "lambda_edge_rewrite_header_policy" {
+  role       = aws_iam_role.lambda_edge_rewrite_header.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+resource "aws_cloudwatch_log_group" "lambda_edge_rewrite_header_logs" {
+  name              = "/aws/lambda/${var.lambda_edge_rewrite_header_name}"
+  retention_in_days = 14
+}
+
+data "archive_file" "rewrite_header_zip" {
+  type        = "zip"
+  source_dir  = "${var.lambda_edge_rewrite_header_source_folder}"
+  output_path = "${var.lambda_edge_rewrite_header_source_folder}/lambda.zip"
+
+  excludes = ["lambda.zip", ".gitignore"]
+}
+
+resource "aws_lambda_function" "viewer_response" {
+  function_name = var.lambda_edge_rewrite_header_name
+  role          = aws_iam_role.lambda_edge_rewrite_header.arn
+  handler       = "index.handler"
+  runtime       = "nodejs22.x"
+
+  filename = data.archive_file.rewrite_header_zip.output_path
+  source_code_hash = data.archive_file.rewrite_header_zip.output_base64sha256
+  publish = true
+
+  depends_on = [
+    aws_iam_role_policy_attachment.lambda_edge_rewrite_header_policy,
+    aws_cloudwatch_log_group.lambda_edge_rewrite_header_logs
+  ]
+}
+
 
 #==========================================================
 # AWS Certificate Manager for CloudFront with DNS validation
@@ -355,6 +403,11 @@ resource "aws_cloudfront_distribution" "website" {
     lambda_function_association {
       event_type   = "viewer-request"
       lambda_arn   = aws_lambda_function.viewer_request.qualified_arn
+      include_body = false
+    }
+    lambda_function_association {
+      event_type   = "viewer-response"
+      lambda_arn   = aws_lambda_function.viewer_response.qualified_arn
       include_body = false
     }
   }
@@ -631,6 +684,11 @@ resource "aws_cloudfront_distribution" "prod" {
       lambda_arn   = aws_lambda_function.viewer_request.qualified_arn
       include_body = false
     }
+    lambda_function_association {
+      event_type   = "viewer-response"
+      lambda_arn   = aws_lambda_function.viewer_response.qualified_arn
+      include_body = false
+    }
   }
 
   restrictions {
@@ -702,6 +760,9 @@ resource "aws_cloudfront_origin_request_policy" "apim_policy" {
         "X-Forwarded-Host",
         "X-Forwarded-Path",
         "X-Forwarded-Subdomain",
+        "X-Auth-Token",
+        "X-Correlation-Id",
+        "X-Profile-Id"
       ]
     }
   }

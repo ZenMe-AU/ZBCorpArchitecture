@@ -1,6 +1,6 @@
 packages:
   - corpSetup/c11cloudfront/source/authGuardLambdaEdge
-  - corpSetup/c11cloudfront/source/msalSpa
+  - corpSetup/c11cloudfront/source/loginApp
 onlyBuiltDependencies:
   - snyk25h
   - snyk25h6

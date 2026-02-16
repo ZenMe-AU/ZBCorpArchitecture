@@ -47,7 +47,7 @@ variable "bucket_static_website_source_folder" {
 variable "bucket_spa_source_folder" {
   description = "The source folder for the SPA files"
   type        = string
-  # default     = "source/msalSpa"
+  # default     = "source/loginApp"
 }
 
 variable "lambda_edge_auth_guard_role" {
@@ -66,6 +66,24 @@ variable "lambda_edge_auth_guard_name" {
   description = "The name of the AWS Lambda@Edge auth guard function"
   type        = string
   # default     = "asleepswordtail-authGuard-func"
+}
+
+variable "lambda_edge_rewrite_header_role" {
+  description = "The IAM role for the AWS Lambda@Edge rewrite header function"
+  type        = string
+  # default     = "asleepswordtail-rewriteHeader-func-role"
+}
+
+variable "lambda_edge_rewrite_header_source_folder" {
+  description = "The source folder for the AWS Lambda@Edge rewrite header function"
+  type        = string
+  # default     = "source/rewriteHeaderLambdaEdge"
+}
+
+variable "lambda_edge_rewrite_header_name" {
+  description = "The name of the AWS Lambda@Edge rewrite header function"
+  type        = string
+  # default     = "asleepswordtail-rewriteHeader-func"
 }
 
 variable "dns_name" {
@@ -115,7 +133,7 @@ variable "origin_request_policy_name" {
 variable "tenant_id" {
   description = "The Azure AD Tenant ID"
   type        = string
-  default     = "15fb0613-7977-4551-801b-6aadac824241"
+  # default     = "15fb0613-7977-4551-801b-6aadac824241"
 }
 
 variable "cf_unavailable_name" {

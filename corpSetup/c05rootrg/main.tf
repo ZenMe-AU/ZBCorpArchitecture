@@ -30,6 +30,14 @@ resource "azurerm_monitor_diagnostic_setting" "activity_log_diagnostics" {
   }
 }
 
+resource "azurerm_application_insights" "appinsights" {
+  name                = var.app_insights_name
+  location            = azurerm_resource_group.root_rg.location
+  resource_group_name = azurerm_resource_group.root_rg.name
+  application_type    = "web"
+  workspace_id        = azurerm_log_analytics_workspace.log_analytics_workspace.id
+}
+
 # create dns
 resource "azurerm_dns_zone" "dns_zone" {
   name                = var.dns_name
