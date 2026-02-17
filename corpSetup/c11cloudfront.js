@@ -6,11 +6,10 @@
 /* This script configures the corporate environment with the relevant permissions to allow automated deployments.
  */
 import { execSync } from "child_process";
-import { existsSync, readFileSync, writeFileSync, readdirSync } from "fs";
+import { existsSync, readFileSync, writeFileSync } from "fs";
 import { resolve, dirname } from "path";
 import {
   getResourceGroupName,
-  getLogAnalyticsWorkspaceName,
   getStorageAccountName,
   getBucketName,
   getLambdaFunctionName,
@@ -20,19 +19,13 @@ import {
   getOriginRequestPolicyName,
   getAppRegistrationName,
 } from "../util/namingConvention.cjs";
-import { getSubscriptionId, getDefaultAzureLocation, isStorageAccountNameAvailable } from "../util/azureCli.cjs";
+import { getSubscriptionId } from "../util/azureCli.cjs";
 import { fileURLToPath } from "url";
 import dotenv from "dotenv";
+import { setTfVar } from "./tfUtils.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-
-function setTfVar(name, value) {
-  const envKey = `TF_VAR_${name}`;
-  process.env[envKey] = value;
-
-  console.log(`Setting terraform variable ${name} to: ${value}`);
-}
 
 const env = {
   // please don't modify data, path and loaded directly
@@ -109,25 +102,7 @@ const env = {
   },
 };
 
-let azureLocation = null;
-function getAzureLocation() {
-  if (azureLocation) {
-    return azureLocation;
-  }
-  try {
-    const tmpazureLocation = getDefaultAzureLocation();
-    if (tmpazureLocation && tmpazureLocation.length > 0) {
-      return (azureLocation = tmpazureLocation);
-    }
-  } catch (error) {
-    console.error("Failed to get Azure location:", error.message);
-  }
-  azureLocation = "australiaeast"; // Default fallback location
-  console.warn(`Using fallback Azure location: ${azureLocation}`);
-  return azureLocation;
-}
-
-function main() {
+function main(corpEnvFile) {
   const autoApprove = process.argv.includes("--auto-approve");
 
   try {
@@ -137,7 +112,6 @@ function main() {
       throw new Error(`c11cloudfront directory not found in ${__dirname}`);
     }
     console.log("workingDir:", workingDirName);
-    const corpEnvFile = resolve(__dirname, "corp.env");
     if (!existsSync(corpEnvFile)) {
       throw new Error("corp.env file not found.");
     }
@@ -164,33 +138,39 @@ function main() {
         if (!dnsName) {
           throw new Error("DNS is not set in corp.env.");
         }
+        const tenantId = execSync(`az account show --query tenantId -o tsv`, { encoding: "utf8", stdio: "pipe" }).trim();
         const accSubscriptionId = getSubscriptionId();
         if (accSubscriptionId !== subscriptionId) {
           execSync(`az account set --subscription ${subscriptionId}`, { stdio: "pipe", shell: true });
           console.log("Switching subscription to", `${corpName}-subscription`);
         }
         const resourceGroupName = getResourceGroupName("root", corpName);
-        // const storageAccountName = getStorageAccountName(corpName);
-        // try {
-        //   execSync(`az storage account show --resource-group ${resourceGroupName} --name ${storageAccountName}`, { stdio: "ignore" });
-        // } catch {
-        //   throw new Error(`Storage Account ${storageAccountName} is not found. Please run c05rootrg stage first.`);
-        // }
+        const storageAccountName = getStorageAccountName(corpName);
+        try {
+          execSync(`az storage account show --resource-group ${resourceGroupName} --name ${storageAccountName}`, { stdio: "ignore" });
+        } catch {
+          throw new Error(`Storage Account ${storageAccountName} is not found. Please run c05rootrg stage first.`);
+        }
+        setTfVar("tenant_id", tenantId);
         setTfVar("subscription_id", subscriptionId);
         setTfVar("dns_name", dnsName);
         setTfVar("resource_group_name", resourceGroupName);
         const bucketStaticWebsiteSourceFolder = resolve(__dirname, workingDirName, "source", "webpage");
-        const bucketSpaSourceFolder = resolve(__dirname, workingDirName, "source", "msalSpa");
+        const bucketSpaSourceFolder = resolve(__dirname, workingDirName, "source", "loginApp");
         const lambdaEdgeAuthGuardSourceFolder = resolve(__dirname, workingDirName, "source", "authGuardLambdaEdge");
+        const lambdaEdgeRewriteHeaderSourceFolder = resolve(__dirname, workingDirName, "source", "rewriteHeaderLambdaEdge");
 
         setTfVar("app_registration_name", getAppRegistrationName(corpName, "login"));
         setTfVar("bucket_static_website_source_folder", bucketStaticWebsiteSourceFolder);
         setTfVar("bucket_spa_source_folder", bucketSpaSourceFolder);
         setTfVar("lambda_edge_auth_guard_source_folder", lambdaEdgeAuthGuardSourceFolder);
+        setTfVar("lambda_edge_rewrite_header_source_folder", lambdaEdgeRewriteHeaderSourceFolder);
         setTfVar("bucket_static_website_name", getBucketName(corpName, "web"));
         setTfVar("bucket_spa_name", getBucketName(corpName, "login"));
         setTfVar("lambda_edge_auth_guard_name", getLambdaFunctionName(corpName, "guard"));
         setTfVar("lambda_edge_auth_guard_role", getLambdaFunctionRoleName(corpName, "guard"));
+        setTfVar("lambda_edge_rewrite_header_role", getLambdaFunctionRoleName(corpName, "rewriteHeader"));
+        setTfVar("lambda_edge_rewrite_header_name", getLambdaFunctionName(corpName, "rewriteHeader"));
         setTfVar("cf_unavailable_name", getCloudfrontDistributionName(corpName, "unavailable"));
         setTfVar("cf_login_name", getCloudfrontDistributionName(corpName, "login"));
         setTfVar("cf_prod_name", getCloudfrontDistributionName(corpName, "prod"));
@@ -228,6 +208,7 @@ function main() {
         execSync(
           `terraform init -reconfigure\
             -backend-config="resource_group_name=${resourceGroupName}" \
+            -backend-config="storage_account_name=${storageAccountName}" \
             -backend-config="container_name=terraformstate" \
             -backend-config="key=${workingDirName}.tfstate"`,
           { stdio: "pipe", shell: true, cwd: resolve(__dirname, workingDirName) }
@@ -236,13 +217,8 @@ function main() {
         // install dependencies and build for SPA
         execSync(`pnpm install`, { stdio: "pipe", shell: true });
         execSync(`pnpm run build`, { stdio: "pipe", shell: true, cwd: bucketSpaSourceFolder });
-
-        // Build lambda@edge only on non-Windows shells because its build script uses unix-only tools (rm/rsync).
-        if (process.platform !== "win32") {
-          execSync(`pnpm run build`, { stdio: "pipe", shell: true, cwd: lambdaEdgeAuthGuardSourceFolder });
-        } else {
-          console.warn("Skipping lambda@edge build on Windows (build script uses unix tools). Run it manually in WSL or update package.json to be cross-platform.");
-        }
+        // install dependencies for lambda@edge
+        execSync(`pnpm run build`, { stdio: "pipe", shell: true, cwd: lambdaEdgeAuthGuardSourceFolder });
 
         // if (!tfStateList.includes("aws_cloudwatch_log_group.lambda_edge_auth_guard_logs ")) {
         //   execSync(`terraform import aws_cloudwatch_log_group.lambda_edge_auth_guard_logs /aws/lambda/${lambdaEdgeAuthGuardName}`, {
@@ -251,6 +227,7 @@ function main() {
         //     cwd: resolve(__dirname, workingDirName),
         //   });
         // }
+
 
     console.log("Starting Terraform initialization.");
     // Run terraform
@@ -273,6 +250,4 @@ function main() {
   }
 }
 
-main();
-
-export default { main };
+export { main };

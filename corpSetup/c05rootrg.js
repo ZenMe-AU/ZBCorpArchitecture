@@ -6,33 +6,21 @@
 /* This script configures the corporate environment with the relevant permissions to allow automated deployments.
  */
 import { execSync } from "child_process";
-import { existsSync, readFileSync, writeFileSync, readdirSync } from "fs";
+import { existsSync, readFileSync, writeFileSync } from "fs";
 import { resolve, dirname } from "path";
 import {
   getResourceGroupName,
   getLogAnalyticsWorkspaceName,
   getStorageAccountName,
-  getBucketName,
-  getLambdaFunctionName,
-  getCloudfrontDistributionName,
-  getLambdaFunctionRoleName,
-  getCloudfrontOriginAccessControlName,
-  getOriginRequestPolicyName,
-  getAppRegistrationName,
+  getAppInsightsName,
 } from "../util/namingConvention.cjs";
-import { getSubscriptionId, getDefaultAzureLocation, isStorageAccountNameAvailable } from "../util/azureCli.cjs";
+import { getSubscriptionId, getDefaultAzureLocation } from "../util/azureCli.cjs";
 import { fileURLToPath } from "url";
 import dotenv from "dotenv";
+import { setTfVar } from "./tfUtils.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-
-function setTfVar(name, value) {
-  const envKey = `TF_VAR_${name}`;
-  process.env[envKey] = value;
-
-  console.log(`Setting terraform variable ${name} to: ${value}`);
-}
 
 const env = {
   // please don't modify data, path and loaded directly
@@ -127,7 +115,7 @@ function getAzureLocation() {
   return azureLocation;
 }
 
-function main() {
+function main(corpEnvFile) {
   const autoApprove = process.argv.includes("--auto-approve");
 
   try {
@@ -137,7 +125,6 @@ function main() {
       throw new Error(`c05rootrg directory not found in ${__dirname}`);
     }
     console.log("workingDir:", workingDirName);
-    const corpEnvFile = resolve(__dirname, "corp.env");
     if (!existsSync(corpEnvFile)) {
       throw new Error("corp.env file not found.");
     }
@@ -157,157 +144,180 @@ function main() {
     console.log("tfStateList:", tfStateList);
 
         const subscriptionId = env.get("SUBSCRIPTION_ID");
-                if (!subscriptionId) {
-                  throw new Error("SUBSCRIPTION_ID is not set in corp.env.");
-                }
-                const dnsName = env.get("DNS");
-                if (!dnsName) {
-                  throw new Error("DNS is not set in corp.env.");
-                }
-                const accSubscriptionId = getSubscriptionId();
-                if (accSubscriptionId !== subscriptionId) {
-                  execSync(`az account set --subscription ${subscriptionId}`, { stdio: "pipe", shell: true });
-                  console.log("Switching subscription to", `${corpName}-subscription`);
-                }
-                const location = getAzureLocation();
-                const resourceGroupName = getResourceGroupName("root", corpName);
-                const logAnalyticsWorkspaceName = getLogAnalyticsWorkspaceName(corpName);
-                const storageAccountName = getStorageAccountName(corpName);
-                setTfVar("subscription_id", subscriptionId);
-                setTfVar("dns_name", dnsName);
-                setTfVar("location", location);
-                setTfVar("resource_group_name", resourceGroupName);
-                setTfVar("log_analytics_workspace_name", logAnalyticsWorkspaceName);
-                setTfVar("storage_account_name", storageAccountName);
-        
-                execSync(`terraform init`, { stdio: "pipe", shell: true, cwd: resolve(__dirname, workingDirName) });
-        
-                if (!tfStateList.includes("azurerm_resource_group.root_rg")) {
-                  let isExisting = false;
-                  try {
-                    isExisting = !!execSync(`az group show --name ${resourceGroupName} --query id -o tsv`, {
-                      encoding: "utf8",
-                      stdio: "pipe",
-                    }).trim();
-                  } catch {}
-                  if (isExisting) {
-                    console.log("Importing existing Resource Group:", resourceGroupName);
-                    execSync(`terraform import azurerm_resource_group.root_rg /subscriptions/${subscriptionId}/resourceGroups/${resourceGroupName}`, {
-                      stdio: "pipe",
-                      shell: true,
-                      cwd: resolve(__dirname, workingDirName),
-                    });
+        if (!subscriptionId) {
+          throw new Error("SUBSCRIPTION_ID is not set in corp.env.");
+        }
+        const dnsName = env.get("DNS");
+        if (!dnsName) {
+          throw new Error("DNS is not set in corp.env.");
+        }
+        const accSubscriptionId = getSubscriptionId();
+        if (accSubscriptionId !== subscriptionId) {
+          execSync(`az account set --subscription ${subscriptionId}`, { stdio: "pipe", shell: true });
+          console.log("Switching subscription to", `${corpName}-subscription`);
+        }
+        const location = getAzureLocation();
+        const resourceGroupName = getResourceGroupName("root", corpName);
+        const logAnalyticsWorkspaceName = getLogAnalyticsWorkspaceName(corpName);
+        const storageAccountName = getStorageAccountName(corpName);
+        const appInsightsName = getAppInsightsName(corpName);
+        setTfVar("subscription_id", subscriptionId);
+        setTfVar("dns_name", dnsName);
+        setTfVar("location", location);
+        setTfVar("resource_group_name", resourceGroupName);
+        setTfVar("log_analytics_workspace_name", logAnalyticsWorkspaceName);
+        setTfVar("storage_account_name", storageAccountName);
+        setTfVar("app_insights_name", appInsightsName);
+
+        execSync(`terraform init`, { stdio: "pipe", shell: true, cwd: resolve(__dirname, workingDirName) });
+
+        if (!tfStateList.includes("azurerm_resource_group.root_rg")) {
+          let isExisting = false;
+          try {
+            isExisting = !!execSync(`az group show --name ${resourceGroupName} --query id -o tsv`, {
+              encoding: "utf8",
+              stdio: "pipe",
+            }).trim();
+          } catch {}
+          if (isExisting) {
+            console.log("Importing existing Resource Group:", resourceGroupName);
+            execSync(`terraform import azurerm_resource_group.root_rg /subscriptions/${subscriptionId}/resourceGroups/${resourceGroupName}`, {
+              stdio: "pipe",
+              shell: true,
+              cwd: resolve(__dirname, workingDirName),
+            });
+          }
+        }
+
+        if (!tfStateList.includes("azurerm_log_analytics_workspace.log_analytics_workspace")) {
+          let isExisting = false;
+          try {
+            isExisting = !!execSync(
+              `az monitor log-analytics workspace show --resource-group ${resourceGroupName} --workspace-name ${logAnalyticsWorkspaceName} --query id -o tsv`,
+              {
+                encoding: "utf8",
+                stdio: "pipe",
+              }
+            ).trim();
+          } catch {}
+          if (isExisting) {
+            console.log("Importing existing Log Analytics Workspace:", logAnalyticsWorkspaceName);
+            execSync(
+              `terraform import azurerm_log_analytics_workspace.log_analytics_workspace /subscriptions/${subscriptionId}/resourceGroups/${resourceGroupName}/providers/Microsoft.OperationalInsights/workspaces/${logAnalyticsWorkspaceName}`,
+              {
+                stdio: "pipe",
+                shell: true,
+                cwd: resolve(__dirname, workingDirName),
+              }
+            );
+          }
+        }
+        if (!tfStateList.includes("azurerm_monitor_diagnostic_setting.activity_log_diagnostics")) {
+          const isExisting = !!execSync(
+            `az monitor diagnostic-settings list --resource /subscriptions/${subscriptionId} --query "[?name=='standard-diagnostics-setting'].id" -o tsv`,
+            {
+              encoding: "utf8",
+              stdio: "pipe",
+            }
+          ).trim();
+          if (isExisting) {
+            console.log("Importing existing Monitor Diagnostic Setting: activity_log_diagnostics");
+            execSync(
+              `terraform import azurerm_monitor_diagnostic_setting.activity_log_diagnostics "/subscriptions/${subscriptionId}|standard-diagnostics-setting"`,
+              {
+                stdio: "pipe",
+                shell: true,
+                cwd: resolve(__dirname, workingDirName),
+              }
+            );
+          }
+        }
+        if (!tfStateList.includes("azurerm_dns_zone.dns_zone")) {
+          let isExisting = false;
+          try {
+            isExisting = !!execSync(`az network dns zone show --resource-group ${resourceGroupName} --name ${dnsName}`, {
+              encoding: "utf8",
+              stdio: "pipe",
+            }).trim();
+          } catch {}
+          if (isExisting) {
+            console.log("Importing existing DNS Zone:", dnsName);
+            execSync(
+              `terraform import azurerm_dns_zone.dns_zone /subscriptions/${subscriptionId}/resourceGroups/${resourceGroupName}/providers/Microsoft.Network/dnsZones/${dnsName}`,
+              {
+                stdio: "pipe",
+                shell: true,
+                cwd: resolve(__dirname, workingDirName),
+              }
+            );
+          }
+        }
+        if (!tfStateList.includes("azurerm_storage_account.sa")) {
+          let isExisting = (() => {
+            try {
+              execSync(`az storage account show --resource-group ${resourceGroupName} --name ${storageAccountName}`, { stdio: "ignore" });
+              return true;
+            } catch {
+              return false;
+            }
+          })();
+          if (isExisting) {
+            console.log("Importing existing Storage Account:", storageAccountName);
+            execSync(
+              `terraform import azurerm_storage_account.sa /subscriptions/${subscriptionId}/resourceGroups/${resourceGroupName}/providers/Microsoft.Storage/storageAccounts/${storageAccountName}`,
+              {
+                stdio: "pipe",
+                shell: true,
+                cwd: resolve(__dirname, workingDirName),
+              }
+            );
+            if (!tfStateList.includes("azurerm_storage_container.tfstate_container")) {
+              const containerName = "terraformstate";
+              let isContainerExisting = false;
+              try {
+                const output = execSync(`az storage container exists --name ${containerName} --account-name ${storageAccountName} --query exists -o tsv`, {
+                  encoding: "utf8",
+                  stdio: "pipe",
+                }).trim();
+                isContainerExisting = output === "true";
+              } catch {
+                throw new Error(`Failed to check container ${containerName}. Make sure you have Storage Blob Data Contributor permission.`);
+              }
+              if (isContainerExisting) {
+                console.log("Importing existing Storage Container:", containerName);
+                execSync(
+                  `terraform import azurerm_storage_container.tfstate_container /subscriptions/${subscriptionId}/resourceGroups/${resourceGroupName}/providers/Microsoft.Storage/storageAccounts/${storageAccountName}/blobServices/default/containers/${containerName}`,
+                  {
+                    stdio: "pipe",
+                    shell: true,
+                    cwd: resolve(__dirname, workingDirName),
                   }
-                }
-        
-                if (!tfStateList.includes("azurerm_log_analytics_workspace.log_analytics_workspace")) {
-                  let isExisting = false;
-                  try {
-                    isExisting = !!execSync(
-                      `az monitor log-analytics workspace show --resource-group ${resourceGroupName} --workspace-name ${logAnalyticsWorkspaceName} --query id -o tsv`,
-                      {
-                        encoding: "utf8",
-                        stdio: "pipe",
-                      }
-                    ).trim();
-                  } catch {}
-                  if (isExisting) {
-                    console.log("Importing existing Log Analytics Workspace:", logAnalyticsWorkspaceName);
-                    execSync(
-                      `terraform import azurerm_log_analytics_workspace.log_analytics_workspace /subscriptions/${subscriptionId}/resourceGroups/${resourceGroupName}/providers/Microsoft.OperationalInsights/workspaces/${logAnalyticsWorkspaceName}`,
-                      {
-                        stdio: "pipe",
-                        shell: true,
-                        cwd: resolve(__dirname, workingDirName),
-                      }
-                    );
-                  }
-                }
-                if (!tfStateList.includes("azurerm_monitor_diagnostic_setting.activity_log_diagnostics")) {
-                  const isExisting = !!execSync(
-                    `az monitor diagnostic-settings list --resource /subscriptions/${subscriptionId} --query "[?name=='standard-diagnostics-setting'].id" -o tsv`,
-                    {
-                      encoding: "utf8",
-                      stdio: "pipe",
-                    }
-                  ).trim();
-                  if (isExisting) {
-                    console.log("Importing existing Monitor Diagnostic Setting: activity_log_diagnostics");
-                    execSync(
-                      `terraform import azurerm_monitor_diagnostic_setting.activity_log_diagnostics "/subscriptions/${subscriptionId}|standard-diagnostics-setting"`,
-                      {
-                        stdio: "pipe",
-                        shell: true,
-                        cwd: resolve(__dirname, workingDirName),
-                      }
-                    );
-                  }
-                }
-                if (!tfStateList.includes("azurerm_dns_zone.dns_zone")) {
-                  let isExisting = false;
-                  try {
-                    isExisting = !!execSync(`az network dns zone show --resource-group ${resourceGroupName} --name ${dnsName}`, {
-                      encoding: "utf8",
-                      stdio: "pipe",
-                    }).trim();
-                  } catch {}
-                  if (isExisting) {
-                    console.log("Importing existing DNS Zone:", dnsName);
-                    execSync(
-                      `terraform import azurerm_dns_zone.dns_zone /subscriptions/${subscriptionId}/resourceGroups/${resourceGroupName}/providers/Microsoft.Network/dnsZones/${dnsName}`,
-                      {
-                        stdio: "pipe",
-                        shell: true,
-                        cwd: resolve(__dirname, workingDirName),
-                      }
-                    );
-                  }
-                }
-                if (!tfStateList.includes("azurerm_storage_account.sa")) {
-                  let isExisting = (() => {
-                    try {
-                      execSync(`az storage account show --resource-group ${resourceGroupName} --name ${storageAccountName}`, { stdio: "ignore" });
-                      return true;
-                    } catch {
-                      return false;
-                    }
-                  })();
-                  if (isExisting) {
-                    console.log("Importing existing Storage Account:", storageAccountName);
-                    execSync(
-                      `terraform import azurerm_storage_account.sa /subscriptions/${subscriptionId}/resourceGroups/${resourceGroupName}/providers/Microsoft.Storage/storageAccounts/${storageAccountName}`,
-                      {
-                        stdio: "pipe",
-                        shell: true,
-                        cwd: resolve(__dirname, workingDirName),
-                      }
-                    );
-                    if (!tfStateList.includes("azurerm_storage_container.tfstate_container")) {
-                      const containerName = "terraformstate";
-                      let isContainerExisting = false;
-                      try {
-                        const output = execSync(`az storage container exists --name ${containerName} --account-name ${storageAccountName} --query exists -o tsv`, {
-                          encoding: "utf8",
-                          stdio: "pipe",
-                        }).trim();
-                        isContainerExisting = output === "true";
-                      } catch {
-                        throw new Error(`Failed to check container ${containerName}. Make sure you have Storage Blob Data Contributor permission.`);
-                      }
-                      if (isContainerExisting) {
-                        console.log("Importing existing Storage Container:", containerName);
-                        execSync(
-                          `terraform import azurerm_storage_container.tfstate_container /subscriptions/${subscriptionId}/resourceGroups/${resourceGroupName}/providers/Microsoft.Storage/storageAccounts/${storageAccountName}/blobServices/default/containers/${containerName}`,
-                          {
-                            stdio: "pipe",
-                            shell: true,
-                            cwd: resolve(__dirname, workingDirName),
-                          }
-                        );
-                      }
-                    }
-                  }
-                }
+                );
+              }
+            }
+          }
+        }
+        // Importing Application Insights if exists and not already in tfstate.
+        if (!tfStateList.includes("azurerm_application_insights.appinsights")) {
+          const isExisting = !!execSync(
+            `az monitor app-insights component show --app ${appInsightsName} --resource-group ${resourceGroupName} --query "id" -o tsv`,
+            {
+              encoding: "utf8",
+              stdio: "pipe",
+            }
+          ).trim();
+          if (isExisting) {
+            console.log("Importing existing Application Insights: ", appInsightsName);
+            execSync(
+              `terraform import azurerm_application_insights.appinsights "/subscriptions/${subscriptionId}/resourceGroups/${resourceGroupName}/providers/Microsoft.Insights/components/${appInsightsName}"`,
+              {
+                stdio: "pipe",
+                shell: true,
+                cwd: resolve(__dirname, workingDirName),
+              }
+            );
+          }
+        }
 
     console.log("Starting Terraform initialization.");
     // Run terraform
@@ -330,6 +340,4 @@ function main() {
   }
 }
 
-main();
-
-export default { main };
+export { main };

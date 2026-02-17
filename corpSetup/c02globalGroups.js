@@ -6,21 +6,15 @@
 /* This script configures the corporate environment with the relevant permissions to allow automated deployments.
  */
 import { execSync } from "child_process";
-import { existsSync, readFileSync, writeFileSync, readdirSync } from "fs";
+import { existsSync, readFileSync, writeFileSync } from "fs";
 import { resolve, dirname } from "path";
-import { getSubscriptionId, getDefaultAzureLocation, isStorageAccountNameAvailable } from "../util/azureCli.cjs";
+import { getSubscriptionId } from "../util/azureCli.cjs";
 import { fileURLToPath } from "url";
 import dotenv from "dotenv";
+import { setTfVar } from "./tfUtils.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-
-function setTfVar(name, value) {
-  const envKey = `TF_VAR_${name}`;
-  process.env[envKey] = value;
-
-  console.log(`Setting terraform variable ${name} to: ${value}`);
-}
 
 const env = {
   // please don't modify data, path and loaded directly
@@ -97,25 +91,7 @@ const env = {
   },
 };
 
-let azureLocation = null;
-function getAzureLocation() {
-  if (azureLocation) {
-    return azureLocation;
-  }
-  try {
-    const tmpazureLocation = getDefaultAzureLocation();
-    if (tmpazureLocation && tmpazureLocation.length > 0) {
-      return (azureLocation = tmpazureLocation);
-    }
-  } catch (error) {
-    console.error("Failed to get Azure location:", error.message);
-  }
-  azureLocation = "australiaeast"; // Default fallback location
-  console.warn(`Using fallback Azure location: ${azureLocation}`);
-  return azureLocation;
-}
-
-function main() {
+function main(corpEnvFile) {
   const autoApprove = process.argv.includes("--auto-approve");
 
   try {
@@ -125,7 +101,6 @@ function main() {
       throw new Error(`c02globalGroups directory not found in ${__dirname}`);
     }
     console.log("workingDir:", workingDirName);
-    const corpEnvFile = resolve(__dirname, "corp.env");
     if (!existsSync(corpEnvFile)) {
       throw new Error("corp.env file not found.");
     }
@@ -310,6 +285,4 @@ function main() {
   }
 }
 
-main();
-
-export default { main };
+export { main };
