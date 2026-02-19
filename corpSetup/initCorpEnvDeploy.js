@@ -15,7 +15,7 @@ import dotenv from "dotenv";
 import {main as c01function} from "./c01subscription.js";
 import {main as c02function} from "./c02globalGroups.js";
 import {main as c05function} from "./c05rootrg.js";
-import {main as c11function} from "./c11cloudfront.js";
+import {main as c25function} from "./c25cloudfront.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -166,8 +166,8 @@ function main() {
         c05function(corpEnvFile);
         break;
       }
-      case "c11cloudfront": {
-        c11function(corpEnvFile);
+      case "c25cloudfront": {
+        c25function(corpEnvFile);
         break;
       }
     }

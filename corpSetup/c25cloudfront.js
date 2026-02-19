@@ -107,9 +107,9 @@ function main(corpEnvFile) {
 
   try {
     // Find the working directory that matches the stage
-    const workingDirName = resolve(__dirname, "c11cloudfront");
+    const workingDirName = resolve(__dirname, "c25cloudfront");
     if (!workingDirName) {
-      throw new Error(`c11cloudfront directory not found in ${__dirname}`);
+      throw new Error(`c25cloudfront directory not found in ${__dirname}`);
     }
     console.log("workingDir:", workingDirName);
     if (!existsSync(corpEnvFile)) {
