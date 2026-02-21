@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { useEffect } from "react";
 import { useMsal, useIsAuthenticated } from "@azure/msal-react";
 import { loginRequest } from "../authConfig";
+import { useAnchor } from "../hooks/useAnchor";
 
 interface LoginGuardProps {
   children: ReactNode;
@@ -11,6 +12,7 @@ interface LoginGuardProps {
 export default function LoginGuard({ children }: LoginGuardProps) {
   const { instance, inProgress } = useMsal();
   const isAuthenticated = useIsAuthenticated();
+  useAnchor(); // Ensure anchor is processed
 
   useEffect(() => {
     if (inProgress !== "none") return;
