@@ -67,3 +67,5 @@ export function useAuth() {
     logout,
   };
 }
+
+export type Auth = ReturnType<typeof useAuth>;

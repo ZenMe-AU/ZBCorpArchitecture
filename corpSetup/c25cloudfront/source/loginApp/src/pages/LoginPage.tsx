@@ -2,11 +2,14 @@ import { AuthenticatedTemplate, UnauthenticatedTemplate } from "@azure/msal-reac
 import { Button, Card, CardContent, Typography, Box, Container } from "@mui/material";
 import Login from "@mui/icons-material/Login";
 import Logout from "@mui/icons-material/Logout";
-import { useAuth } from "../hooks/useAuth";
-import { useAnchorPage, goBackAnchor } from "../hooks/useAnchorPage";
+import { useAuth, type Auth } from "../hooks/useAuth";
+import { useAnchor, type Anchor } from "../hooks/useAnchor";
 
 // Component: Displays login page with different content for authenticated and unauthenticated users
 export default function LoginPage() {
+  const { hasAnchor, goBack } = useAnchor();
+  const { account, login, logout } = useAuth();
+
   return (
     <Box
       sx={{
@@ -30,8 +33,8 @@ export default function LoginPage() {
         }}
       >
         <CardContent sx={{ textAlign: "center", pt: 4 }}>
-          <UnauthenticatedSection />
-          <AuthenticatedSection />
+          <UnauthenticatedSection login={login} />
+          <AuthenticatedSection account={account} logout={logout} hasAnchor={hasAnchor} goBack={goBack} />
         </CardContent>
       </Card>
     </Box>
@@ -39,9 +42,7 @@ export default function LoginPage() {
 }
 
 // Separate components for authenticated and unauthenticated sections below
-function UnauthenticatedSection() {
-  const { login } = useAuth();
-
+function UnauthenticatedSection({ login }: Pick<Auth, "login">) {
   return (
     <UnauthenticatedTemplate>
       <Box
@@ -64,10 +65,7 @@ function UnauthenticatedSection() {
   );
 }
 
-function AuthenticatedSection() {
-  const { logout, account } = useAuth();
-  const { hasAnchor } = useAnchorPage();
-
+function AuthenticatedSection({ account, logout, hasAnchor, goBack }: Pick<Auth, "account" | "logout"> & Pick<Anchor, "hasAnchor" | "goBack">) {
   return (
     <AuthenticatedTemplate>
       <Container sx={{ mb: 2 }}>
@@ -88,7 +86,7 @@ function AuthenticatedSection() {
               fontWeight: "bold",
               fontSize: "0.95rem",
             }}
-            onClick={goBackAnchor}
+            onClick={goBack}
           >
             Return to Previous Page
           </Button>

@@ -7,9 +7,9 @@ const ANCHOR_KEY = "nav_anchor_page";
 /**
  * Hook: Record anchor page and history stack depth
  * - Only stores pages on the same subdomain
- * - Returns {hasAnchor: boolean} indicating if Go Back button should be shown
+ * - Returns {hasAnchor: boolean, goBack: () => void} indicating if Go Back button should be shown
  */
-export function useAnchorPage(): { hasAnchor: boolean } {
+export function useAnchor(): { hasAnchor: boolean; goBack: () => void } {
   const [hasAnchor, setHasAnchor] = useState<boolean>(false);
 
   useEffect(() => {
@@ -20,7 +20,6 @@ export function useAnchorPage(): { hasAnchor: boolean } {
       if (ref && ref !== currentUrl && new URL(ref).hostname.endsWith(cookieDomain)) {
         sessionStorage.setItem(ANCHOR_KEY, ref);
         sessionStorage.setItem(HISTORY_KEY, String(window.history.length - 1));
-        console.log("Anchor page set:", ref, "History depth:", window.history.length - 1, "Current URL:", currentUrl);
       }
       // Determine if Go Back button should show
       const depth: number = Number(sessionStorage.getItem(HISTORY_KEY));
@@ -32,20 +31,19 @@ export function useAnchorPage(): { hasAnchor: boolean } {
     }
   }, []);
 
-  return { hasAnchor };
+  return { hasAnchor, goBack: goBackAnchor };
 }
 
 /**
  * Navigate back to the stored anchor
  * Priority: history stack depth → anchorPage → console.warn(do nothing)
  */
-export function goBackAnchor(): void {
+function goBackAnchor(): void {
   try {
     // Use history depth first
     const anchorDepth: number = Number(sessionStorage.getItem(HISTORY_KEY) ?? NaN);
     if (!Number.isNaN(anchorDepth)) {
       const delta: number = anchorDepth - window.history.length;
-      console.log("Navigating back with history delta:", delta, anchorDepth, window.history.length);
       if (delta !== 0) {
         window.history.go(delta);
         return;
@@ -63,3 +61,5 @@ export function goBackAnchor(): void {
   }
   console.warn("No valid anchor found, navigating to fallback");
 }
+
+export type Anchor = ReturnType<typeof useAnchor>;
