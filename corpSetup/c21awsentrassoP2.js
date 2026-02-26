@@ -6,18 +6,12 @@
 /* This script configures the corporate environment with the relevant permissions to allow automated deployments.
  */
 import { execSync } from "child_process";
-import { existsSync, readFileSync, writeFileSync, readdirSync } from "fs";
+import { existsSync, readFileSync, writeFileSync } from "fs";
 import { resolve, dirname } from "path";
-import { getDefaultAzureLocation} from "../util/azureCli.cjs";
-import minimist from "minimist";
+import { getSubscriptionId } from "../util/azureCli.cjs";
 import { fileURLToPath } from "url";
 import dotenv from "dotenv";
-import {main as c01function} from "./c01subscription.js";
-import {main as c02function} from "./c02globalGroups.js";
-import {main as c05function} from "./c05rootrg.js";
-import {main as c20function, manual_message} from "./c20awsentrasso.js";
-import {main as c21function} from "./c21awsentrassoP2.js";
-import {main as c25function} from "./c25cloudfront.js";
+import { setTfVar } from "./tfUtils.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -97,46 +91,16 @@ const env = {
   },
 };
 
-let azureLocation = null;
-function getAzureLocation() {
-  if (azureLocation) {
-    return azureLocation;
-  }
-  try {
-    const tmpazureLocation = getDefaultAzureLocation();
-    if (tmpazureLocation && tmpazureLocation.length > 0) {
-      return (azureLocation = tmpazureLocation);
-    }
-  } catch (error) {
-    console.error("Failed to get Azure location:", error.message);
-  }
-  azureLocation = "australiaeast"; // Default fallback location
-  console.warn(`Using fallback Azure location: ${azureLocation}`);
-  return azureLocation;
-}
-
-function main() {
+function main(corpEnvFile) {
   const autoApprove = process.argv.includes("--auto-approve");
-  const args = minimist(process.argv.slice(2));
-  const stage = args.stage;
-  const stageRegex = /^c\d{2}$/;
 
   try {
-    // Validate stage argument
-    if (!stage) {
-      throw new Error("Stage is required.");
-    }
-    // Validate stage format
-    if (!stageRegex.test(stage)) {
-      throw new Error("Invalid stage format. Expected format: cXX");
-    }
     // Find the working directory that matches the stage
-    const workingDirName = readdirSync(__dirname, { withFileTypes: true }).find((dir) => dir.isDirectory() && dir.name.startsWith(stage))?.name;
+    const workingDirName = resolve(__dirname, "c21awsentrassoP2");
     if (!workingDirName) {
-      throw new Error(`No directory found for stage: ${stage}`);
+      throw new Error(`c21awsentrassoP2 directory not found in ${__dirname}`);
     }
     console.log("workingDir:", workingDirName);
-    const corpEnvFile = resolve(__dirname, "corp.env");
     if (!existsSync(corpEnvFile)) {
       throw new Error("corp.env file not found.");
     }
@@ -154,61 +118,32 @@ function main() {
         .filter(Boolean);
     } catch {}
     console.log("tfStateList:", tfStateList);
-    switch (workingDirName) {
-      case "c01subscription": {
-        c01function(corpEnvFile);
-        break;
-      }
-      case "c02globalGroups": {
-        // need Groups Administrator role to run this stage
-        c02function(corpEnvFile);
-        break;
-      }
-      case "c05rootrg": {
-        c05function(corpEnvFile);
-        break;
-      }
-      case "c20awsentrasso": {
-        c20function(corpEnvFile);
-        break;
-      }
-      case "c21awsentrassoP2": {
-        c21function(corpEnvFile);
-        break;
-      }
-      case "c25cloudfront": {
-        c25function(corpEnvFile);
-        break;
-      }
-    }
+    
+        //IMPORTANT: Need Global Administrator role active to run this code
+        const subscriptionId = env.get("SUBSCRIPTION_ID");
+        if (!subscriptionId) {
+          throw new Error("SUBSCRIPTION_ID is not set in corp.env.");
+        }
+        const tenantId = execSync(`az account show --query tenantId -o tsv`, { encoding: "utf8", stdio: "pipe" }).trim();
+        const accSubscriptionId = getSubscriptionId();
+        if (accSubscriptionId !== subscriptionId) {
+          execSync(`az account set --subscription ${subscriptionId}`, { stdio: "pipe", shell: true });
+          console.log("Switching subscription to", `${corpName}-subscription`);
+        }
+
+        setTfVar("tenant_id", tenantId);
+        setTfVar("subscription_id", subscriptionId);
+       
+        // create sso for aws account
+
 
     console.log("Starting Terraform initialization.");
+    execSync(`terraform init`, { stdio: "pipe", shell: true, cwd: resolve(__dirname, workingDirName) });
     // Run terraform
-    execSync(`terraform apply ${autoApprove ? " -auto-approve" : ""}`, {
-      stdio: "inherit",
-      shell: true,
-      cwd: resolve(__dirname, workingDirName),
-    });
-    
-    // Post-apply SAML configuration for c20awsentrasso
-    if (workingDirName === "c20awsentrasso") {
-      manual_message();
-    }
-    
-    if (!env.get("SUBSCRIPTION_ID")) {
-      const newSubscriptionId = execSync(`terraform output -raw new_subscription_id`, {
-        encoding: "utf-8",
-        cwd: resolve(__dirname, workingDirName),
-      }).trim();
-      env.add("SUBSCRIPTION_ID", newSubscriptionId);
-      env.saveToFile();
-    }
   } catch (error) {
     console.error(error.stack);
     process.exit(1);
   }
 }
 
-main();
-
-export default { main };
+export { main };
