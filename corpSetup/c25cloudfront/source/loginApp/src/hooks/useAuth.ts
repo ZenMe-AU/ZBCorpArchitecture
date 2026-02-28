@@ -18,27 +18,44 @@ export function useAuth() {
     if (!isAuthenticated || !account) return;
 
     const getToken = async () => {
+      let authStatus: "SUCCESS" | "FAILED" = "FAILED";
       try {
         const res = await instance.acquireTokenSilent({
           ...loginRequest,
           account,
         });
 
-        if (res?.idToken) {
-          await cookieStore.set({
-            name: "idToken",
-            value: res.idToken || "",
-            domain: cookieDomain,
-          });
-          // await cookieStore.set({
-          //   name: "preferred_username",
-          //   value: idTokenClaims?.preferred_username || "",
-          //   domain: cookieDomain,
-          // });
-          // console.log(cookieDomain);
+        if (!res?.idToken) return; // No token, do nothing
+        const idTokenClaims = res?.idTokenClaims as { exp?: number } | undefined;
+        const exp = typeof idTokenClaims?.exp === "number" ? idTokenClaims.exp * 1000 : undefined;
+        // Token expired, delete cookie
+        if (exp !== undefined && Date.now() > exp) {
+          await cookieStore.set({ name: "idToken", value: "", domain: cookieDomain });
+          await cookieStore.delete({ name: "idToken", domain: cookieDomain });
+          return;
         }
+        await cookieStore.set({
+          name: "idToken",
+          value: res.idToken || "",
+          domain: cookieDomain,
+          expires: exp,
+          // sameSite: "none",
+          sameSite: "lax",
+        });
+        // await cookieStore.set({
+        //   name: "preferred_username",
+        //   value: idTokenClaims?.preferred_username || "",
+        //   domain: cookieDomain,
+        // });
+        // console.log(cookieDomain);
+        authStatus = "SUCCESS";
       } catch (err) {
         console.error("Token acquire failed", err);
+      } finally {
+        // Reload parent page to update auth state
+        if (window.self !== window.top) {
+          window.parent.postMessage({ authStatus }, "*");
+        }
       }
     };
 
