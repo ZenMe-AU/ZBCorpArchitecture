@@ -24,10 +24,8 @@ export function useAuth() {
           ...loginRequest,
           account,
         });
-
         if (!res?.idToken) return; // No token, do nothing
-        const idTokenClaims = res?.idTokenClaims as { exp?: number } | undefined;
-        const exp = typeof idTokenClaims?.exp === "number" ? idTokenClaims.exp * 1000 : undefined;
+        const exp = res.expiresOn?.getTime();
         // Token expired, delete cookie
         if (exp !== undefined && Date.now() > exp) {
           await cookieStore.set({ name: "idToken", value: "", domain: cookieDomain });
