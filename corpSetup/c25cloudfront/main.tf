@@ -150,7 +150,7 @@ data "archive_file" "edge_zip" {
 
   excludes = ["lambda.zip"]
 
-  depends_on = [ local_file.guard_config ]
+  depends_on = [ local_file.guard_config, local_file.guard_html ]
 }
 
 resource "aws_lambda_function" "viewer_request" {
