@@ -71,7 +71,13 @@
     </style>
   </head>
   <body>
-    <div class="card">
+    <!-- Processing login card (shown initially) -->
+    <div id="processing-card">
+      <p>Processing login, please wait…</p>
+    </div>
+
+    <!-- Original login card (hidden initially) -->
+    <div id="login-card" class="card" style="display: none">
       <h1>Login Required</h1>
       <p>
         You are not logged in or your session has expired.<br />
@@ -85,15 +91,90 @@
         <code>${auth_domain}</code>
       </div>
     </div>
-    <!-- Auto-reload script -->
+
     <script>
-      window.addEventListener("pageshow", function (event) {
-        // This reload the page if loaded from cache and online. There is a small risk of infinite loop, to be investigated.
-        if (event.persisted && navigator.onLine) {
-          console.log("Page is ready to reload.");
-          window.location.reload();
+      (function () {
+        function showManualLoginCard(isShowCard) {
+          const processing = document.getElementById("processing-card");
+          const login = document.getElementById("login-card");
+          if (isShowCard) {
+            processing.style.display = "none";
+            login.style.display = "block";
+          } else {
+            processing.style.display = "block";
+            login.style.display = "none";
+          }
         }
-      });
+
+        function refreshViaIframe() {
+          const AUTH_URL = "${auth_domain}";
+          const AUTH_ORIGIN = new URL(AUTH_URL).origin;
+          const TIMEOUT_MS = 10000;
+          return new Promise(function (resolve, reject) {
+            const iframe = document.createElement("iframe");
+            iframe.src = AUTH_URL;
+            iframe.style.display = "none";
+
+            function cleanup() {
+              window.removeEventListener("message", handler);
+              if (document.body.contains(iframe)) {
+                document.body.removeChild(iframe);
+              }
+            }
+
+            function handler(event) {
+              if (event.origin !== AUTH_ORIGIN) return;
+
+              if (event.data?.authStatus === "SUCCESS") {
+                cleanup();
+                resolve();
+              } else if (event.data?.authStatus === "FAILED") {
+                cleanup();
+                reject();
+              }
+            }
+
+            window.addEventListener("message", handler);
+            document.body.appendChild(iframe);
+
+            setTimeout(function () {
+              cleanup();
+              reject();
+            }, TIMEOUT_MS);
+          });
+        }
+
+        function getCookie(name) {
+          const value = "; " + document.cookie;
+          const parts = value.split("; " + name + "=");
+          if (parts.length === 2) return parts.pop().split(";").shift();
+          return null;
+        }
+
+        // ---- Silent Auth ----
+        if (!getCookie("idToken")) {
+          showManualLoginCard(false); // Show processing card while attempting silent auth
+          refreshViaIframe()
+            .then(function () {
+              sessionStorage.setItem("skip_pageshow_reload", "1");
+            })
+            // .catch(function () {
+            //   showManualLoginCard(true); // Show login card on failure
+            // })
+            .finally(function () {
+              showManualLoginCard(true);
+              if (getCookie("idToken")) window.location.reload();
+            });
+        }
+
+        // ---- BFCache Handling ----
+        window.addEventListener("pageshow", function (event) {
+          if (event.persisted && navigator.onLine && !sessionStorage.getItem("skip_pageshow_reload")) {
+            window.location.reload();
+          }
+          sessionStorage.removeItem("skip_pageshow_reload");
+        });
+      })();
     </script>
   </body>
 </html>
