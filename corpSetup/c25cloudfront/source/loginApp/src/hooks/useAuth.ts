@@ -60,7 +60,13 @@ export function useAuth() {
     getToken();
   }, [isAuthenticated, account, instance, inProgress]);
 
-  const login = () => instance.loginRedirect(loginRequest);
+  const login = () => {
+    if (window.self !== window.top) {
+      instance.loginPopup(loginRequest);
+    } else {
+      instance.loginRedirect(loginRequest);
+    }
+  };
 
   const logout = async () => {
     await cookieStore.set({ name: "idToken", value: "", domain: cookieDomain });

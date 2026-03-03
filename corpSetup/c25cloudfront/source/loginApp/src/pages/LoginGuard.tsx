@@ -17,10 +17,14 @@ export default function LoginGuard({ children }: LoginGuardProps) {
   useEffect(() => {
     if (inProgress !== "none") return;
     if (!isAuthenticated) {
-      instance.loginRedirect(loginRequest);
+      if (window.self !== window.top) {
+        instance.loginPopup(loginRequest);
+      } else {
+        instance.loginRedirect(loginRequest);
+      }
     }
   }, [isAuthenticated, inProgress, instance]);
 
-  if (!isAuthenticated) return null;
+  // if (!isAuthenticated) return null;
   return <>{children}</>;
 }

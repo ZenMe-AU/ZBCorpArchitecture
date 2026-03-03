@@ -1,5 +1,5 @@
 import { AuthenticatedTemplate, UnauthenticatedTemplate } from "@azure/msal-react";
-import { Button, Card, CardContent, Typography, Box, Container } from "@mui/material";
+import { Button, Card, CardContent, Typography, Box, Container, CircularProgress } from "@mui/material";
 import Login from "@mui/icons-material/Login";
 import Logout from "@mui/icons-material/Logout";
 import { useAuth, type Auth } from "../hooks/useAuth";
@@ -50,6 +50,26 @@ function UnauthenticatedSection({ login }: Pick<Auth, "login">) {
           position: "relative",
           display: "inline-block",
           textAlign: "center",
+          top: 0,
+          left: 0,
+          width: "100%",
+          height: "100%",
+          bgcolor: "rgba(255, 255, 255, 0.8)",
+          zIndex: 2,
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          borderRadius: 2,
+        }}
+      >
+        <CircularProgress sx={{ mb: 2 }} />
+        <Typography variant="body1">Waiting for Microsoft authentication</Typography>
+      </Box>
+      {/* <Box
+        sx={{
+          position: "relative",
+          display: "inline-block",
+          textAlign: "center",
         }}
       >
         <Typography variant="h6" fontWeight="bold" sx={{ position: "relative", zIndex: 1 }}>
@@ -60,7 +80,7 @@ function UnauthenticatedSection({ login }: Pick<Auth, "login">) {
         <Button variant="contained" endIcon={<Login />} sx={{ borderRadius: 20, textTransform: "none" }} onClick={login}>
           Sign in with Microsoft
         </Button>
-      </Box>
+      </Box> */}
     </UnauthenticatedTemplate>
   );
 }
