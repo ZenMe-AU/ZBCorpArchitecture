@@ -71,20 +71,22 @@
     </style>
   </head>
   <body>
-    <!-- Processing login card (shown initially) -->
-    <div id="processing-card">
-      <p>Processing login, please wait…</p>
+    <!-- Processing login card (hidden initially) -->
+    <div id="processing-card" class="card" style="display: none">
+      <h1>Refreshing session</h1>
+      <p>If nothing happens, refresh manually.</p>
+      <button class="btn" onclick="window.location.reload()">refresh</button>
     </div>
 
-    <!-- Original login card (hidden initially) -->
-    <div id="login-card" class="card" style="display: none">
+    <!-- Original login card (shown initially) -->
+    <div id="login-card" class="card">
       <h1>Login Required</h1>
       <p>
         You are not logged in or your session has expired.<br />
         Please log in to continue.
       </p>
 
-      <a class="btn" href="${auth_domain}"> Go to Login </a>
+      <a class="btn" id="login-btn"> Go to Login </a>
 
       <div class="fallback">
         If the button does not work, copy and open this URL:
@@ -94,6 +96,43 @@
 
     <script>
       (function () {
+        const AUTH_URL = "${auth_domain}";
+        const AUTH_ORIGIN = new URL(AUTH_URL).origin;
+        function openLoginPopup() {
+          const popup = window.open(AUTH_URL, "loginPopup", "width=500,height=650,resizable=yes");
+
+          if (!popup) {
+            alert("Popup blocked. Please allow popups for this site.");
+            return;
+          }
+
+          function handler(event) {
+            console.log("Received message from popup:", event);
+            if (event.origin !== AUTH_ORIGIN) return;
+
+            if (event.data?.authStatus === "SUCCESS") {
+              window.removeEventListener("message", handler);
+              popup.close();
+              showManualLoginCard(false);
+              console.log(getCookie("idToken"));
+              if (getCookie("idToken")) {
+                window.location.reload();
+              }
+            }
+
+            if (event.data?.authStatus === "FAILED") {
+              window.removeEventListener("message", handler);
+              popup.close();
+              console.error("Login failed");
+              alert("Login failed. Please try again.");
+            }
+          }
+
+          window.addEventListener("message", handler);
+        }
+
+        document.getElementById("login-btn").addEventListener("click", openLoginPopup);
+
         function showManualLoginCard(isShowCard) {
           const processing = document.getElementById("processing-card");
           const login = document.getElementById("login-card");
@@ -106,10 +145,8 @@
           }
         }
 
-        function refreshViaIframe() {
-          const AUTH_URL = "${auth_domain}";
-          const AUTH_ORIGIN = new URL(AUTH_URL).origin;
-          const TIMEOUT_MS = 10000;
+        function silentRefreshViaIframe() {
+          const TIMEOUT_MS = 5000;
           return new Promise(function (resolve, reject) {
             const iframe = document.createElement("iframe");
             iframe.src = AUTH_URL;
@@ -150,30 +187,9 @@
           if (parts.length === 2) return parts.pop().split(";").shift();
           return null;
         }
-
-        // ---- Silent Auth ----
-        if (!getCookie("idToken")) {
-          showManualLoginCard(false); // Show processing card while attempting silent auth
-          refreshViaIframe()
-            .then(function () {
-              sessionStorage.setItem("skip_pageshow_reload", "1");
-            })
-            // .catch(function () {
-            //   showManualLoginCard(true); // Show login card on failure
-            // })
-            .finally(function () {
-              showManualLoginCard(true);
-              if (getCookie("idToken")) window.location.reload();
-            });
+        if (getCookie("idToken")) {
+          showManualLoginCard(false);
         }
-
-        // ---- BFCache Handling ----
-        window.addEventListener("pageshow", function (event) {
-          if (event.persisted && navigator.onLine && !sessionStorage.getItem("skip_pageshow_reload")) {
-            window.location.reload();
-          }
-          sessionStorage.removeItem("skip_pageshow_reload");
-        });
       })();
     </script>
   </body>

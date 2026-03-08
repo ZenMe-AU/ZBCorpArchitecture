@@ -18,7 +18,8 @@ export function useAuth() {
     if (!isAuthenticated || !account) return;
 
     const getToken = async () => {
-      let authStatus: "SUCCESS" | "FAILED" = "FAILED";
+      let authStatus: "SUCCESS" | "FAILED" = "FAILED",
+        token: string | undefined = undefined;
       try {
         const res = await instance.acquireTokenSilent({
           ...loginRequest,
@@ -47,12 +48,14 @@ export function useAuth() {
         // });
         // console.log(cookieDomain);
         authStatus = "SUCCESS";
+        token = res.idToken;
       } catch (err) {
         console.error("Token acquire failed", err);
       } finally {
         // Reload parent page to update auth state
-        if (window.self !== window.top) {
-          window.parent.postMessage({ authStatus }, "*");
+        if (window.opener && !window.opener.closed) {
+          window.opener.postMessage({ authStatus, token }, "*");
+          // window.close();
         }
       }
     };
@@ -61,11 +64,7 @@ export function useAuth() {
   }, [isAuthenticated, account, instance, inProgress]);
 
   const login = () => {
-    if (window.self !== window.top) {
-      instance.loginPopup(loginRequest);
-    } else {
-      instance.loginRedirect(loginRequest);
-    }
+    instance.loginRedirect(loginRequest);
   };
 
   const logout = async () => {
@@ -73,11 +72,12 @@ export function useAuth() {
     await cookieStore.delete({ name: "idToken", domain: cookieDomain });
     // await cookieStore.set({ name: "preferred_username", value: "", domain: cookieDomain });
     // await cookieStore.delete({ name: "preferred_username", domain: cookieDomain });
-    Object.keys(localStorage).forEach((key) => {
-      if (key.startsWith("msal.")) {
-        localStorage.removeItem(key);
-      }
-    });
+    // Object.keys(localStorage).forEach((key) => {
+    //   if (key.startsWith("msal.")) {
+    //     localStorage.removeItem(key);
+    //   }
+    // });
+    await instance.clearCache();
     window.location.reload();
   };
 

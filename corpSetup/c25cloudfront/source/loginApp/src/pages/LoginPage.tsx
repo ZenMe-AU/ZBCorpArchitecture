@@ -1,6 +1,5 @@
 import { AuthenticatedTemplate, UnauthenticatedTemplate } from "@azure/msal-react";
 import { Button, Card, CardContent, Typography, Box, Container, CircularProgress } from "@mui/material";
-import Login from "@mui/icons-material/Login";
 import Logout from "@mui/icons-material/Logout";
 import { useAuth, type Auth } from "../hooks/useAuth";
 import { useAnchor, type Anchor } from "../hooks/useAnchor";
@@ -8,7 +7,7 @@ import { useAnchor, type Anchor } from "../hooks/useAnchor";
 // Component: Displays login page with different content for authenticated and unauthenticated users
 export default function LoginPage() {
   const { hasAnchor, goBack } = useAnchor();
-  const { account, login, logout } = useAuth();
+  const { account, logout } = useAuth();
 
   return (
     <Box
@@ -33,7 +32,7 @@ export default function LoginPage() {
         }}
       >
         <CardContent sx={{ textAlign: "center", pt: 4 }}>
-          <UnauthenticatedSection login={login} />
+          <UnauthenticatedSection />
           <AuthenticatedSection account={account} logout={logout} hasAnchor={hasAnchor} goBack={goBack} />
         </CardContent>
       </Card>
@@ -42,7 +41,7 @@ export default function LoginPage() {
 }
 
 // Separate components for authenticated and unauthenticated sections below
-function UnauthenticatedSection({ login }: Pick<Auth, "login">) {
+function UnauthenticatedSection() {
   return (
     <UnauthenticatedTemplate>
       <Box
@@ -65,22 +64,6 @@ function UnauthenticatedSection({ login }: Pick<Auth, "login">) {
         <CircularProgress sx={{ mb: 2 }} />
         <Typography variant="body1">Waiting for Microsoft authentication</Typography>
       </Box>
-      {/* <Box
-        sx={{
-          position: "relative",
-          display: "inline-block",
-          textAlign: "center",
-        }}
-      >
-        <Typography variant="h6" fontWeight="bold" sx={{ position: "relative", zIndex: 1 }}>
-          Sign in <br />
-          to access protected content
-        </Typography>
-        <Box component="img" src="/welcome.png" sx={{ maxWidth: 260, my: -4 }} />
-        <Button variant="contained" endIcon={<Login />} sx={{ borderRadius: 20, textTransform: "none" }} onClick={login}>
-          Sign in with Microsoft
-        </Button>
-      </Box> */}
     </UnauthenticatedTemplate>
   );
 }
