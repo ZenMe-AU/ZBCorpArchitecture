@@ -12,6 +12,10 @@ terraform {
       version = "~> 3.0"
     }
 
+    msgraph = {
+      source = "microsoft/msgraph"
+    }
+
     aws = {
       source  = "hashicorp/aws"
       version = "~> 5.0"
@@ -35,6 +39,8 @@ provider "azurerm" {
 }
 
 provider "azuread" {}
+
+provider "msgraph" {}
 
 provider "aws" {
   region = var.provider_region

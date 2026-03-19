@@ -7,73 +7,73 @@ data "azuread_application_template" "aws_single_account_access" {
 }
 
 resource "azuread_application_from_template" "aws_sso_corp" {
-  display_name = "AWS Single-Account Access"
+  display_name = var.app_name
   template_id  = data.azuread_application_template.aws_single_account_access.template_id
 }
 
 locals {
   # App-specific federation metadata endpoint for the AWS Single-Account Access app.
-  aws_sso_federation_metadata_url = "https://login.microsoftonline.com/${var.tenant_id}/federationmetadata/2007-06/federationmetadata.xml?appid=${azuread_application_from_template.aws_sso_corp.application_object_id}"
+ aws_sso_federation_metadata_url = format(
+    "https://login.microsoftonline.com/%s/federationmetadata/2007-06/federationmetadata.xml?appid=%s",
+    var.tenant_id,
+    azuread_application_from_template.aws_sso_corp.application_object_id
+  )
 }
 
 data "http" "entra_federation_metadata" {
   url = local.aws_sso_federation_metadata_url
-
   request_headers = {
     Accept = "application/xml"
   }
-
-  depends_on = [
-    azuread_application_from_template.aws_sso_corp
-  ]
 }
 
 resource "aws_iam_saml_provider" "entra_c" {
-  name                   = "EntraC"
+  name                   = var.identity_provider_name
   saml_metadata_document = data.http.entra_federation_metadata.response_body
 }
 
+data "aws_iam_policy_document" "role_policy" {
+  statement {
+    effect = "Allow"
+    actions   = ["*"]
+    resources = ["*"]
+  }
+}
+
 resource "aws_iam_policy" "azuread_sso_user_role_policy_c" {
-  name = "AzureAD_SSOUserRole_PolicyC"
+  name = var.role_policy_name
+  policy = data.aws_iam_policy_document.role_policy.json
+}
 
-  policy = <<POLICY
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": "*",
-      "Resource": "*"
+# resource "aws_iam_user" "azuread_role_manager_c" {
+#   name = var.user_name
+# }
+
+# resource "aws_iam_user_policy_attachment" "azuread_role_manager_c" {
+#   user       = aws_iam_user.azuread_role_manager_c.name
+#   policy_arn = aws_iam_policy.azuread_sso_user_role_policy_c.arn
+# }
+
+data "aws_iam_policy_document" "assume_role" {
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRoleWithSAML"]
+    principals {
+      type        = "Federated"
+      identifiers = [aws_iam_saml_provider.entra_c.arn]
     }
-  ]
-}
-POLICY
-}
-
-resource "aws_iam_user" "azuread_role_manager_c" {
-  name = "AzureADRoleManagerC"
-}
-
-resource "aws_iam_user_policy_attachment" "azuread_role_manager_c" {
-  user       = aws_iam_user.azuread_role_manager_c.name
-  policy_arn = aws_iam_policy.azuread_sso_user_role_policy_c.arn
+    # recommended but optional condition to ensure the role is only assumable in the context of AWS SSO
+    # condition {
+    #   test     = "StringEquals"
+    #   variable = "SAML:aud"
+    #   values   = ["https://signin.aws.amazon.com/saml"]
+    # }
+  }
 }
 
 resource "aws_iam_role" "entra_id_admin_access_c" {
-  name = "EntraID-AdminAccessC"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Principal = {
-          Federated = aws_iam_saml_provider.entra_c.arn
-        }
-        Action = "sts:AssumeRoleWithSAML"
-      }
-    ]
-  })
+  name = var.role_name
+  assume_role_policy = data.aws_iam_policy_document.assume_role.json
 }
 
 resource "aws_iam_role_policy_attachment" "entra_id_admin_access_c" {
@@ -81,8 +81,8 @@ resource "aws_iam_role_policy_attachment" "entra_id_admin_access_c" {
   policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
 }
 
-## Intentionally no post-apply provisioners:
-## this stage now deploys only resources that are directly represented in Terraform.
+# Intentionally no post-apply provisioners:
+# this stage now deploys only resources that are directly represented in Terraform.
 
 # Output the application details
 output "application_id" {
@@ -110,10 +110,10 @@ output "aws_iam_policy_arn" {
   value       = aws_iam_policy.azuread_sso_user_role_policy_c.arn
 }
 
-output "aws_iam_user_name" {
-  description = "Name of the IAM user created for Azure AD role management"
-  value       = aws_iam_user.azuread_role_manager_c.name
-}
+# output "aws_iam_user_name" {
+#   description = "Name of the IAM user created for Azure AD role management"
+#   value       = aws_iam_user.azuread_role_manager_c.name
+# }
 
 output "aws_iam_role_arn" {
   description = "ARN of the Entra-backed IAM administrator role"

@@ -383,192 +383,216 @@ export function c20_post_apply_saml_save(terraformCwd, samlEntityId = "urn:amazo
       console.warn("SAML signing certificate was not updated.");
     }
 
-    try {
-      const readOptionalTerraformOutput = (name) => {
-        try {
-          return execSync(`terraform output -raw ${name}`, {
-            cwd: terraformCwd,
-            encoding: "utf8",
-            stdio: "pipe",
-            shell: true,
-          }).trim();
-        } catch {
-          return "";
-        }
-      };
+    // try {
+    //   const readOptionalTerraformOutput = (name) => {
+    //     try {
+    //       return execSync(`terraform output -raw ${name}`, {
+    //         cwd: terraformCwd,
+    //         encoding: "utf8",
+    //         stdio: "pipe",
+    //         shell: true,
+    //       }).trim();
+    //     } catch {
+    //       return "";
+    //     }
+    //   };
 
-      let awsRoleArn = readOptionalTerraformOutput("aws_iam_role_arn");
-      let awsSamlProviderArn = readOptionalTerraformOutput("aws_iam_saml_provider_arn");
+    //   let awsRoleArn = readOptionalTerraformOutput("aws_iam_role_arn");
+    //   let awsSamlProviderArn = readOptionalTerraformOutput("aws_iam_saml_provider_arn");
 
-      if (!awsRoleArn || !awsSamlProviderArn) {
-        try {
-          const awsAccountId = execSync("aws sts get-caller-identity --query Account --output text", {
-            encoding: "utf8",
-            stdio: "pipe",
-            shell: true,
-          }).trim();
+    //   if (!awsRoleArn || !awsSamlProviderArn) {
+    //     try {
+    //       const awsAccountId = execSync("aws sts get-caller-identity --query Account --output text", {
+    //         encoding: "utf8",
+    //         stdio: "pipe",
+    //         shell: true,
+    //       }).trim();
 
-          if (!awsRoleArn) {
-            awsRoleArn = `arn:aws:iam::${awsAccountId}:role/EntraID-AdminAccessC`;
-          }
-          if (!awsSamlProviderArn) {
-            awsSamlProviderArn = `arn:aws:iam::${awsAccountId}:saml-provider/EntraC`;
-          }
-        } catch {
-          // Leave empty and allow placeholder fallback below.
-        }
-      }
+    //       if (!awsRoleArn) {
+    //         awsRoleArn = `arn:aws:iam::${awsAccountId}:role/EntraID-AdminAccessC`;
+    //       }
+    //       if (!awsSamlProviderArn) {
+    //         awsSamlProviderArn = `arn:aws:iam::${awsAccountId}:saml-provider/EntraC`;
+    //       }
+    //     } catch {
+    //       // Leave empty and allow placeholder fallback below.
+    //     }
+    //   }
 
-      if (!awsRoleArn) {
-        awsRoleArn = "placeholder";
-      }
-      if (!awsSamlProviderArn) {
-        awsSamlProviderArn = "placeholder";
-      }
+    //   if (!awsRoleArn) {
+    //     awsRoleArn = "placeholder";
+    //   }
+    //   if (!awsSamlProviderArn) {
+    //     awsSamlProviderArn = "placeholder";
+    //   }
 
-      const claimsPolicyDisplayName = `AWS-SAML-Claims-${applicationObjectId}`;
-      const awsRoleJoinValue = `${awsRoleArn},${awsSamlProviderArn}`;
-      const claimsPolicyDefinition = {
-        ClaimsMappingPolicy: {
-          Version: 1,
-          IncludeBasicClaimSet: "true",
-          ClaimsSchema: [
-            {
-              Value: awsRoleJoinValue,
-              SamlClaimType: "https://aws.amazon.com/SAML/Attributes/Role",
-            },
-            {
-              Source: "user",
-              ID: "userprincipalname",
-              SamlClaimType: "https://aws.amazon.com/SAML/Attributes/RoleSessionName",
-            },
-            {
-              Value: "900",
-              SamlClaimType: "https://aws.amazon.com/SAML/Attributes/SessionDuration",
-            },
-            {
-              Source: "user",
-              ID: "userprincipalname",
-              SamlClaimType: "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier",
-            },
-            {
-              Source: "user",
-              ID: "assignedroles",
-              JwtClaimType: "appRoles",
-            },
-          ],
-        },
-      };
+    //   const claimsPolicyDisplayName = `AWS-SAML-Claims-${applicationObjectId}`;
+    //   const awsRoleJoinValue = `${awsRoleArn},${awsSamlProviderArn}`;
+    //   const claimsPolicyDefinition = {
+    //     ClaimsMappingPolicy: {
+    //       Version: 1,
+    //       IncludeBasicClaimSet: "true",
+    //       ClaimsSchema: [
+    //         {
+    //           Value: awsRoleJoinValue,
+    //           SamlClaimType: "https://aws.amazon.com/SAML/Attributes/Role",
+    //         },
+    //         {
+    //           Source: "user",
+    //           ID: "userprincipalname",
+    //           SamlClaimType: "https://aws.amazon.com/SAML/Attributes/RoleSessionName",
+    //         },
+    //         {
+    //           Value: "900",
+    //           SamlClaimType: "https://aws.amazon.com/SAML/Attributes/SessionDuration",
+    //         },
+    //         {
+    //           Source: "user",
+    //           ID: "userprincipalname",
+    //           SamlClaimType: "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier",
+    //         },
+    //         {
+    //           Source: "user",
+    //           ID: "assignedroles",
+    //           JwtClaimType: "appRoles",
+    //         },
+    //       ],
+    //       ClaimsTransformation: [
+    //         {
+    //           ID: "JoinRole",
+    //           TransformationMethod: "Join",
+    //           InputParameters: [
+    //             {
+    //               ID: "string1",
+    //               Value: "arn:aws:iam::198333343378:role/EntraID-AdminAccessC",
+    //             },
+    //             {
+    //               ID: "string2",
+    //               Value: "arn:aws:iam::198333343378:saml-provider/EntraC",
+    //             },
+    //             {
+    //               ID: "separator",
+    //               Value: ",",
+    //             },
+    //           ],
+    //           OutputClaims: [
+    //             {
+    //               ClaimTypeReferenceId: "SsoRole",
+    //               TransformationClaimType: "outputClaim",
+    //             },
+    //           ],
+    //         },
+    //       ],
+    //     },
+    //   };
 
-      const claimsPolicyBody = {
-        displayName: claimsPolicyDisplayName,
-        definition: [JSON.stringify(claimsPolicyDefinition)],
-        isOrganizationDefault: false,
-      };
-      writeFileSync(claimsPolicyPayloadPath, JSON.stringify(claimsPolicyBody), "utf8");
+    //   const claimsPolicyBody = {
+    //     displayName: claimsPolicyDisplayName,
+    //     definition: [JSON.stringify(claimsPolicyDefinition)],
+    //     isOrganizationDefault: false,
+    //   };
+    //   writeFileSync(claimsPolicyPayloadPath, JSON.stringify(claimsPolicyBody), "utf8");
 
-      const listPoliciesRaw = execFileSync(
-        "az",
-        [
-          "rest",
-          "--method",
-          "GET",
-          "--url",
-          `https://graph.microsoft.com/v1.0/policies/claimsMappingPolicies?$filter=${encodeURIComponent(
-            `displayName eq '${claimsPolicyDisplayName}'`
-          )}`,
-        ],
-        { stdio: "pipe", shell: true, encoding: "utf8" }
-      );
-      const listPolicies = JSON.parse(listPoliciesRaw || "{}");
-      let claimsPolicyId = listPolicies?.value?.[0]?.id;
+    //   const listPoliciesRaw = execFileSync(
+    //     "az",
+    //     [
+    //       "rest",
+    //       "--method",
+    //       "GET",
+    //       "--url",
+    //       `https://graph.microsoft.com/v1.0/policies/claimsMappingPolicies?$filter=${encodeURIComponent(`displayName eq '${claimsPolicyDisplayName}'`)}`,
+    //     ],
+    //     { stdio: "pipe", shell: true, encoding: "utf8" }
+    //   );
+    //   const listPolicies = JSON.parse(listPoliciesRaw || "{}");
+    //   let claimsPolicyId = listPolicies?.value?.[0]?.id;
 
-      if (claimsPolicyId) {
-        execFileSync(
-          "az",
-          [
-            "rest",
-            "--method",
-            "PATCH",
-            "--url",
-            `https://graph.microsoft.com/v1.0/policies/claimsMappingPolicies/${claimsPolicyId}`,
-            "--headers",
-            "Content-Type=application/json",
-            "--body",
-            `@${claimsPolicyPayloadPath}`,
-          ],
-          { stdio: "pipe", shell: true, encoding: "utf8" }
-        );
-      } else {
-        const createPolicyRaw = execFileSync(
-          "az",
-          [
-            "rest",
-            "--method",
-            "POST",
-            "--url",
-            "https://graph.microsoft.com/v1.0/policies/claimsMappingPolicies",
-            "--headers",
-            "Content-Type=application/json",
-            "--body",
-            `@${claimsPolicyPayloadPath}`,
-          ],
-          { stdio: "pipe", shell: true, encoding: "utf8" }
-        );
-        const createdPolicy = JSON.parse(createPolicyRaw || "{}");
-        claimsPolicyId = createdPolicy?.id;
-      }
+    //   if (claimsPolicyId) {
+    //     execFileSync(
+    //       "az",
+    //       [
+    //         "rest",
+    //         "--method",
+    //         "PATCH",
+    //         "--url",
+    //         `https://graph.microsoft.com/v1.0/policies/claimsMappingPolicies/${claimsPolicyId}`,
+    //         "--headers",
+    //         "Content-Type=application/json",
+    //         "--body",
+    //         `@${claimsPolicyPayloadPath}`,
+    //       ],
+    //       { stdio: "pipe", shell: true, encoding: "utf8" }
+    //     );
+    //   } else {
+    //     const createPolicyRaw = execFileSync(
+    //       "az",
+    //       [
+    //         "rest",
+    //         "--method",
+    //         "POST",
+    //         "--url",
+    //         "https://graph.microsoft.com/v1.0/policies/claimsMappingPolicies",
+    //         "--headers",
+    //         "Content-Type=application/json",
+    //         "--body",
+    //         `@${claimsPolicyPayloadPath}`,
+    //       ],
+    //       { stdio: "pipe", shell: true, encoding: "utf8" }
+    //     );
+    //     const createdPolicy = JSON.parse(createPolicyRaw || "{}");
+    //     claimsPolicyId = createdPolicy?.id;
+    //   }
 
-      if (claimsPolicyId) {
-        const assignedPoliciesRaw = execFileSync(
-          "az",
-          [
-            "rest",
-            "--method",
-            "GET",
-            "--url",
-            `https://graph.microsoft.com/v1.0/servicePrincipals/${servicePrincipalObjectId}/claimsMappingPolicies?$select=id`,
-          ],
-          { stdio: "pipe", shell: true, encoding: "utf8" }
-        );
-        const assignedPolicies = JSON.parse(assignedPoliciesRaw || "{}");
-        const alreadyAssigned = (assignedPolicies?.value || []).some((policy) => policy.id === claimsPolicyId);
+    //   if (claimsPolicyId) {
+    //     const assignedPoliciesRaw = execFileSync(
+    //       "az",
+    //       [
+    //         "rest",
+    //         "--method",
+    //         "GET",
+    //         "--url",
+    //         `https://graph.microsoft.com/v1.0/servicePrincipals/${servicePrincipalObjectId}/claimsMappingPolicies?$select=id`,
+    //       ],
+    //       { stdio: "pipe", shell: true, encoding: "utf8" }
+    //     );
+    //     const assignedPolicies = JSON.parse(assignedPoliciesRaw || "{}");
+    //     const alreadyAssigned = (assignedPolicies?.value || []).some((policy) => policy.id === claimsPolicyId);
 
-        if (!alreadyAssigned) {
-          writeFileSync(
-            claimsPolicyAssignRefPath,
-            JSON.stringify({
-              "@odata.id": `https://graph.microsoft.com/v1.0/policies/claimsMappingPolicies/${claimsPolicyId}`,
-            }),
-            "utf8"
-          );
-          execFileSync(
-            "az",
-            [
-              "rest",
-              "--method",
-              "POST",
-              "--url",
-              `https://graph.microsoft.com/v1.0/servicePrincipals/${servicePrincipalObjectId}/claimsMappingPolicies/$ref`,
-              "--headers",
-              "Content-Type=application/json",
-              "--body",
-              `@${claimsPolicyAssignRefPath}`,
-            ],
-            { stdio: "pipe", shell: true, encoding: "utf8" }
-          );
-        }
-        claimsPolicyUpdated = true;
-      }
-    } catch (claimsError) {
-      console.warn(`Could not configure AWS claims mapping policy: ${claimsError.message}`);
-    }
+    //     if (!alreadyAssigned) {
+    //       writeFileSync(
+    //         claimsPolicyAssignRefPath,
+    //         JSON.stringify({
+    //           "@odata.id": `https://graph.microsoft.com/v1.0/policies/claimsMappingPolicies/${claimsPolicyId}`,
+    //         }),
+    //         "utf8"
+    //       );
+    //       execFileSync(
+    //         "az",
+    //         [
+    //           "rest",
+    //           "--method",
+    //           "POST",
+    //           "--url",
+    //           `https://graph.microsoft.com/v1.0/servicePrincipals/${servicePrincipalObjectId}/claimsMappingPolicies/$ref`,
+    //           "--headers",
+    //           "Content-Type=application/json",
+    //           "--body",
+    //           `@${claimsPolicyAssignRefPath}`,
+    //         ],
+    //         { stdio: "pipe", shell: true, encoding: "utf8" }
+    //       );
+    //     }
+    //     claimsPolicyUpdated = true;
+    //   }
+    // } catch (claimsError) {
+    //   console.warn(`Could not configure AWS claims mapping policy: ${claimsError.message}`);
+    // }
 
-    if (claimsPolicyUpdated) {
-      console.log("AWS claims mapping policy configured on service principal.");
-    } else {
-      console.warn("AWS claims mapping policy was not updated.");
-    }
+    // if (claimsPolicyUpdated) {
+    //   console.log("AWS claims mapping policy configured on service principal.");
+    // } else {
+    //   console.warn("AWS claims mapping policy was not updated.");
+    // }
   } catch (error) {
     console.warn("Post-apply SAML configuration skipped:", error.message);
   } finally {
