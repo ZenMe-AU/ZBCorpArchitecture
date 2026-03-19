@@ -13,7 +13,7 @@ resource "azuread_application_from_template" "aws_sso_corp" {
 
 locals {
   # App-specific federation metadata endpoint for the AWS Single-Account Access app.
- aws_sso_federation_metadata_url = format(
+  aws_sso_federation_metadata_url = format(
     "https://login.microsoftonline.com/%s/federationmetadata/2007-06/federationmetadata.xml?appid=%s",
     var.tenant_id,
     azuread_application_from_template.aws_sso_corp.application_object_id
@@ -27,6 +27,11 @@ data "http" "entra_federation_metadata" {
   }
 }
 
+# resource "local_file" "entra_metadata" {
+#   content  = data.http.entra_federation_metadata.response_body
+#   filename = "${path.module}/federationmetadata.xml"
+# }
+
 resource "aws_iam_saml_provider" "entra_c" {
   name                   = var.identity_provider_name
   saml_metadata_document = data.http.entra_federation_metadata.response_body
@@ -34,14 +39,14 @@ resource "aws_iam_saml_provider" "entra_c" {
 
 data "aws_iam_policy_document" "role_policy" {
   statement {
-    effect = "Allow"
+    effect    = "Allow"
     actions   = ["*"]
     resources = ["*"]
   }
 }
 
 resource "aws_iam_policy" "azuread_sso_user_role_policy_c" {
-  name = var.role_policy_name
+  name   = var.role_policy_name
   policy = data.aws_iam_policy_document.role_policy.json
 }
 
@@ -72,7 +77,7 @@ data "aws_iam_policy_document" "assume_role" {
 }
 
 resource "aws_iam_role" "entra_id_admin_access_c" {
-  name = var.role_name
+  name               = var.role_name
   assume_role_policy = data.aws_iam_policy_document.assume_role.json
 }
 
