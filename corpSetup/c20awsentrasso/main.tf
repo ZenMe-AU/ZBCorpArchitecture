@@ -11,12 +11,16 @@ resource "azuread_application_from_template" "aws_sso_corp" {
   template_id  = data.azuread_application_template.aws_single_account_access.template_id
 }
 
+data "azuread_application" "aws_sso_corp" {
+  object_id = azuread_application_from_template.aws_sso_corp.application_object_id
+}
+
 locals {
   # App-specific federation metadata endpoint for the AWS Single-Account Access app.
   aws_sso_federation_metadata_url = format(
     "https://login.microsoftonline.com/%s/federationmetadata/2007-06/federationmetadata.xml?appid=%s",
     var.tenant_id,
-    azuread_application_from_template.aws_sso_corp.application_object_id
+    data.azuread_application.aws_sso_corp.client_id
   )
 }
 
@@ -35,6 +39,11 @@ data "http" "entra_federation_metadata" {
 resource "aws_iam_saml_provider" "entra_c" {
   name                   = var.identity_provider_name
   saml_metadata_document = data.http.entra_federation_metadata.response_body
+
+  lifecycle {
+    # Ignore changes to the SAML metadata document, manually update if needed
+    ignore_changes = [saml_metadata_document]
+  }
 }
 
 data "aws_iam_policy_document" "role_policy" {

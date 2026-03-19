@@ -1,10 +1,6 @@
-data "azuread_application" "aws_sso" {
-  object_id = azuread_application_from_template.aws_sso_corp.application_object_id
-}
-
 locals {
   msiam_app_role = one([
-    for r in data.azuread_application.aws_sso.app_roles : r
+    for r in data.azuread_application.aws_sso_corp.app_roles : r
     if r.display_name == "msiam_access"
   ])
 }
