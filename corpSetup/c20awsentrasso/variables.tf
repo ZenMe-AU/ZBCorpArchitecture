@@ -21,22 +21,27 @@ variable "tenant_id" {
 variable "app_name" {
   description = "The name of the AWS SSO application to create in Entra ID"
   type        = string
-  default = "AWS Single-Account Access"
+  default     = "AWS Admin Console "
 }
 variable "identity_provider_name" {
   description = "The name of the identity provider"
   type        = string
-  default     = "Entra"
+  default     = "EntraID"
 }
-variable "role_policy_name" {
-  description = "The name of the IAM role policy"
-  type        = string
-  default     = "AzureAD_SSOUserRole_Policy"
-}
+# variable "role_policy_name" {
+#   description = "The name of the IAM role policy"
+#   type        = string
+#   default     = "AllowAll_Policy"
+# }
 variable "role_name" {
-  description = "The name of the IAM role"
+  description = "The name of the IAM Admin role"
   type        = string
-  default     = "EntraID-AdminAccess"
+  default     = "AccountAdminRole"
+}
+variable "role_ro_name" {
+  description = "The name of the IAM read-only role"
+  type        = string
+  default     = "ReadOnlyRole"
 }
 # variable "user_name" {
 #   description = "The name of the IAM user for role management"
