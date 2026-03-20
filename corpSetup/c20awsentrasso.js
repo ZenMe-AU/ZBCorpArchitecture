@@ -154,6 +154,7 @@ export function manual_message() {
 }
 
 export function c20_post_apply_saml_save(terraformCwd, samlEntityId = "urn:amazon:webservices") {
+  process.exit();
   let tempDir = null;
   try {
     const servicePrincipalObjectId = execSync("terraform output -raw object_id", {
