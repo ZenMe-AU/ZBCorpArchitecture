@@ -23,33 +23,15 @@ resource "msgraph_resource_action" "add_identifier_uri" {
 
 resource "null_resource" "wait_metadata_ready" {
   provisioner "local-exec" {
-    command = <<EOT
-COUNT=0
-while [ $COUNT -lt 20 ]; do
-  XML=$(curl -sf "${local.aws_sso_federation_metadata_url}")
-  ENTITY=$(echo "$XML" | grep -o "<EntityDescriptor.*entityID=")
-  CERT=$(echo "$XML" | grep -o "<X509Certificate>.*</X509Certificate>")
-  SIGNING_COUNT=$(echo "$XML" | xmllint --xpath 'count(//*[local-name()="IDPSSODescriptor"]/*[local-name()="KeyDescriptor" and @use="signing"])' - 2>/dev/null)
-
-  if [ -n "$ENTITY" ] && [ -n "$CERT" ] && [ "$SIGNING_COUNT" -eq 1 ]; then
-    echo "Metadata ready and exactly 1 signing cert found"
-    echo "updating AWS SAML provider with latest metadata."
-    echo "$XML" > ${local.federation_metadata_path}
-    aws iam update-saml-provider \
-    --saml-provider-arn "${aws_iam_saml_provider.entra_c.arn}" \
-    --saml-metadata-document file://${local.federation_metadata_path}
-
-    exit 0
-  fi
-
-  COUNT=$((COUNT+1))
-  echo "Metadata not ready yet, wait 5s..."
-  sleep 5
-done
-
-echo "Metadata still not ready after 100s or signing cert count != 1"
-exit 1
-EOT
+    command = "node ${path.module}/wait_metadata_ready.mjs"
+    environment = {
+      FEDERATION_METADATA_URL = local.aws_sso_federation_metadata_url
+      METADATA_PATH           = local.federation_metadata_path
+      SAML_PROVIDER_ARN       = aws_iam_saml_provider.entra_c.arn
+      MAX_RETRIES             = "20"
+      RETRY_DELAY_SECONDS     = "5"
+      MIN_SIGNING_CERTS       = "1"
+    }
   }
 
   depends_on = [
