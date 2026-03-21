@@ -12,7 +12,11 @@ resource "azuread_application_from_template" "aws_sso_corp" {
 }
 
 data "azuread_application" "aws_sso_corp" {
-  object_id = azuread_application_from_template.aws_sso_corp.application_object_id
+  object_id = azuread_application_from_template.aws_sso_corp.application_object_id 
+  # Refresh after identifier URI is set by msgraph resources
+  depends_on = [
+    msgraph_resource_action.add_identifier_uri,
+  ]
 }
 
 locals {
@@ -30,6 +34,13 @@ data "http" "entra_federation_metadata" {
   request_headers = {
     Accept = "application/xml"
   }
+
+  # Wait for all Azure AD configuration to complete before fetching federation metadata
+  depends_on = [
+    msgraph_resource_action.saml_setup,
+    msgraph_resource_action.add_cert,
+    msgraph_resource_action.add_identifier_uri,
+  ]
 }
 
 # resource "local_file" "entra_metadata" {
@@ -40,6 +51,13 @@ data "http" "entra_federation_metadata" {
 resource "aws_iam_saml_provider" "entra_c" {
   name                   = var.identity_provider_name
   saml_metadata_document = data.http.entra_federation_metadata.response_body
+
+  # Wait for all Azure AD configuration to complete before fetching federation metadata
+  depends_on = [
+    msgraph_resource_action.saml_setup,
+    msgraph_resource_action.add_cert,
+    msgraph_resource_action.add_identifier_uri,
+  ]
 
   lifecycle {
     # Ignore changes to the SAML metadata document, manually update if needed
