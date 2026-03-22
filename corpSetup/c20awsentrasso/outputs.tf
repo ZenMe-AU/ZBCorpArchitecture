@@ -21,20 +21,20 @@
 
 # output "aws_iam_saml_provider_arn" {
 #   description = "ARN of the IAM SAML provider created in AWS"
-#   value       = aws_iam_saml_provider.entra_c.arn
+#   value       = aws_iam_saml_provider.entra.arn
 # }
 
 # output "aws_iam_policy_arn" {
 #   description = "ARN of the IAM policy created for Azure AD SSO user role access"
-#   value       = aws_iam_policy.azuread_sso_user_role_policy_c.arn
+#   value       = aws_iam_policy.azuread_sso_user_role_policy.arn
 # }
 
 # output "aws_iam_user_name" {
 #   description = "Name of the IAM user created for Azure AD role management"
-#   value       = aws_iam_user.azuread_role_manager_c.name
+#   value       = aws_iam_user.azuread_role_manager.name
 # }
 
 # output "aws_iam_role_arn" {
 #   description = "ARN of the Entra-backed IAM administrator role"
-#   value       = aws_iam_role.entra_id_admin_access_c.arn
+#   value       = aws_iam_role.entra_id_admin_access.arn
 # }

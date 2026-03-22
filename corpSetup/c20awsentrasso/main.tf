@@ -12,11 +12,7 @@ resource "azuread_application_from_template" "aws_sso_corp" {
 }
 
 data "azuread_application" "aws_sso_corp" {
-  object_id = azuread_application_from_template.aws_sso_corp.application_object_id 
-  # Refresh after identifier URI is set by msgraph resources
-  depends_on = [
-    msgraph_resource_action.add_identifier_uri,
-  ]
+  object_id = azuread_application_from_template.aws_sso_corp.application_object_id
 }
 
 locals {
@@ -24,9 +20,10 @@ locals {
   aws_sso_federation_metadata_url = format(
     "https://login.microsoftonline.com/%s/federationmetadata/2007-06/federationmetadata.xml?appid=%s",
     var.tenant_id,
-    data.azuread_application.aws_sso_corp.client_id
+    azuread_service_principal.aws_sso_corp.client_id
   )
   federation_metadata_path = "${path.module}/federationmetadata.xml"
+  app_client_id            = data.azuread_application.aws_sso_corp.client_id
 }
 
 data "http" "entra_federation_metadata" {
@@ -34,12 +31,10 @@ data "http" "entra_federation_metadata" {
   request_headers = {
     Accept = "application/xml"
   }
-
-  # Wait for all Azure AD configuration to complete before fetching federation metadata
   depends_on = [
-    msgraph_resource_action.saml_setup,
-    msgraph_resource_action.add_cert,
-    msgraph_resource_action.add_identifier_uri,
+    azuread_service_principal.aws_sso_corp,
+    azuread_service_principal_token_signing_certificate.aws_sso_corp,
+    azuread_application_identifier_uri.aws_sso_corp,
   ]
 }
 
@@ -48,16 +43,9 @@ data "http" "entra_federation_metadata" {
 #   filename = local.federation_metadata_path
 # }
 
-resource "aws_iam_saml_provider" "entra_c" {
+resource "aws_iam_saml_provider" "entra" {
   name                   = var.identity_provider_name
   saml_metadata_document = data.http.entra_federation_metadata.response_body
-
-  # Wait for all Azure AD configuration to complete before fetching federation metadata
-  depends_on = [
-    msgraph_resource_action.saml_setup,
-    msgraph_resource_action.add_cert,
-    msgraph_resource_action.add_identifier_uri,
-  ]
 
   lifecycle {
     # Ignore changes to the SAML metadata document, manually update if needed
@@ -73,18 +61,18 @@ resource "aws_iam_saml_provider" "entra_c" {
 #   }
 # }
 
-# resource "aws_iam_policy" "azuread_sso_user_role_policy_c" {
+# resource "aws_iam_policy" "azuread_sso_user_role_policy" {
 #   name   = var.role_policy_name
 #   policy = data.aws_iam_policy_document.role_policy.json
 # }
 
-# resource "aws_iam_user" "azuread_role_manager_c" {
+# resource "aws_iam_user" "azuread_role_manager" {
 #   name = var.user_name
 # }
 
-# resource "aws_iam_user_policy_attachment" "azuread_role_manager_c" {
-#   user       = aws_iam_user.azuread_role_manager_c.name
-#   policy_arn = aws_iam_policy.azuread_sso_user_role_policy_c.arn
+# resource "aws_iam_user_policy_attachment" "azuread_role_manager" {
+#   user       = aws_iam_user.azuread_role_manager.name
+#   policy_arn = aws_iam_policy.azuread_sso_user_role_policy.arn
 # }
 
 data "aws_iam_policy_document" "assume_role" {
@@ -93,7 +81,7 @@ data "aws_iam_policy_document" "assume_role" {
     actions = ["sts:AssumeRoleWithSAML"]
     principals {
       type        = "Federated"
-      identifiers = [aws_iam_saml_provider.entra_c.arn]
+      identifiers = [aws_iam_saml_provider.entra.arn]
     }
     # condition to ensure the role is only assumable in the context of AWS SSO
     condition {
@@ -104,22 +92,22 @@ data "aws_iam_policy_document" "assume_role" {
   }
 }
 
-resource "aws_iam_role" "entra_id_admin_access_c" {
+resource "aws_iam_role" "entra_id_admin_access" {
   name               = var.role_name
   assume_role_policy = data.aws_iam_policy_document.assume_role.json
 }
 
-resource "aws_iam_role_policy_attachment" "entra_id_admin_access_c" {
-  role       = aws_iam_role.entra_id_admin_access_c.name
+resource "aws_iam_role_policy_attachment" "entra_id_admin_access" {
+  role       = aws_iam_role.entra_id_admin_access.name
   policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
 }
 
-resource "aws_iam_role" "entra_id_read_only_access_c" {
+resource "aws_iam_role" "entra_id_read_only_access" {
   name               = var.role_ro_name
   assume_role_policy = data.aws_iam_policy_document.assume_role.json
 }
 
-resource "aws_iam_role_policy_attachment" "entra_id_read_only_access_c" {
-  role       = aws_iam_role.entra_id_read_only_access_c.name
+resource "aws_iam_role_policy_attachment" "entra_id_read_only_access" {
+  role       = aws_iam_role.entra_id_read_only_access.name
   policy_arn = "arn:aws:iam::aws:policy/ReadOnlyAccess"
 }

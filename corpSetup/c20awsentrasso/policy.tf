@@ -151,7 +151,21 @@ resource "msgraph_resource_action" "claims_policy" {
             condition = null
             attribute = {
               "@odata.type" = "#microsoft.graph.valueBasedAttribute"
-              value         = "${aws_iam_role.entra_id_admin_access_c.arn},${aws_iam_saml_provider.entra_c.arn}"
+              value         = "${aws_iam_role.entra_id_read_only_access.arn},${aws_iam_saml_provider.entra.arn}"
+            }
+            transformations = []
+          },
+          {
+            condition = {
+              "@odata.type" = "#microsoft.graph.customClaimCondition"
+              userType      = "members"
+              memberOf = [
+                "oid:${data.azuread_group.lead_developer.object_id}"
+              ]
+            }
+            attribute = {
+              "@odata.type" = "#microsoft.graph.valueBasedAttribute"
+              value         = "${aws_iam_role.entra_id_admin_access.arn},${aws_iam_saml_provider.entra.arn}"
             }
             transformations = []
           }
