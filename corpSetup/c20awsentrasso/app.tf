@@ -58,6 +58,9 @@ resource "null_resource" "wait_metadata_ready" {
                         if ($thumbprint -eq $ExpectedThumbprint) {
                             Write-Host "Metadata ready and correct cert found."
                             $xmlDoc.OuterXml | Out-File -FilePath $MetadataPath -Encoding UTF8
+                            aws iam update-saml-provider `
+                              --saml-provider-arn "$AwsProviderArn" `
+                              --saml-metadata-document "file://$MetadataPath"
                             exit 0
                         }
                     }
