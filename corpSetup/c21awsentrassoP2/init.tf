@@ -1,3 +1,6 @@
+# This file is responsible for setting up AWS SSO,
+# including the AWS IAM SAML provider, IAM roles,
+# and Azure AD enterprise application claim policies and user group assignments.
 terraform {
   required_version = ">= 1.3"
 

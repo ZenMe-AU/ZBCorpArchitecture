@@ -1,17 +1,5 @@
 
 # Define variables for the environment deployment
-# variable "provider_region" {
-#   description = "The AWS region for the provider"
-#   type        = string
-#   default     = "us-east-1"
-# }
-
-# variable "subscription_id" {
-#   description = "The ID of the Azure Subscription"
-#   type        = string
-#   # default     = "0930d9a7-2369-4a2d-a0b6-5805ef505868"
-# }
-
 variable "tenant_id" {
   description = "The Azure AD Tenant ID"
   type        = string
@@ -23,28 +11,3 @@ variable "app_name" {
   type        = string
   default     = "AWS Admin Console"
 }
-# variable "identity_provider_name" {
-#   description = "The name of the identity provider"
-#   type        = string
-#   default     = "EntraID"
-# }
-# # variable "role_policy_name" {
-# #   description = "The name of the IAM role policy"
-# #   type        = string
-# #   default     = "AllowAll_Policy"
-# # }
-# variable "role_name" {
-#   description = "The name of the IAM Admin role"
-#   type        = string
-#   default     = "AccountAdminRole"
-# }
-# variable "role_ro_name" {
-#   description = "The name of the IAM read-only role"
-#   type        = string
-#   default     = "ReadOnlyRole"
-# }
-# # variable "user_name" {
-# #   description = "The name of the IAM user for role management"
-# #   type        = string
-# #   default     = "AzureADRoleManager"
-# # }

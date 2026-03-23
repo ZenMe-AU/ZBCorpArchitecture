@@ -1,6 +1,7 @@
 data "azuread_application" "aws_sso_corp" {
   display_name = var.app_name
 }
+
 data "azuread_service_principal" "aws_sso_corp" {
   client_id = data.azuread_application.aws_sso_corp.client_id
 }

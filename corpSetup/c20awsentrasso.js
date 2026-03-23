@@ -118,24 +118,23 @@ function main(corpEnvFile) {
         .filter(Boolean);
     } catch {}
     console.log("tfStateList:", tfStateList);
-    
-        //IMPORTANT: Need Global Administrator role active to run this code
-        const subscriptionId = env.get("SUBSCRIPTION_ID");
-        if (!subscriptionId) {
-          throw new Error("SUBSCRIPTION_ID is not set in corp.env.");
-        }
-        const tenantId = execSync(`az account show --query tenantId -o tsv`, { encoding: "utf8", stdio: "pipe" }).trim();
-        const accSubscriptionId = getSubscriptionId();
-        if (accSubscriptionId !== subscriptionId) {
-          execSync(`az account set --subscription ${subscriptionId}`, { stdio: "pipe", shell: true });
-          console.log("Switching subscription to", `${corpName}-subscription`);
-        }
 
-        setTfVar("tenant_id", tenantId);
-        setTfVar("subscription_id", subscriptionId);
-       
-        // create sso for aws account
+    //IMPORTANT: Need Global Administrator role active to run this code
+    const subscriptionId = env.get("SUBSCRIPTION_ID");
+    if (!subscriptionId) {
+      throw new Error("SUBSCRIPTION_ID is not set in corp.env.");
+    }
+    const tenantId = execSync(`az account show --query tenantId -o tsv`, { encoding: "utf8", stdio: "pipe" }).trim();
+    const accSubscriptionId = getSubscriptionId();
+    if (accSubscriptionId !== subscriptionId) {
+      execSync(`az account set --subscription ${subscriptionId}`, { stdio: "pipe", shell: true });
+      console.log("Switching subscription to", `${corpName}-subscription`);
+    }
 
+    setTfVar("tenant_id", tenantId);
+    setTfVar("subscription_id", subscriptionId);
+
+    // create sso for aws account
 
     console.log("Starting Terraform initialization.");
     execSync(`terraform init`, { stdio: "pipe", shell: true, cwd: resolve(__dirname, workingDirName) });
@@ -147,7 +146,6 @@ function main(corpEnvFile) {
 }
 
 export function manual_message() {
-
   console.log("\n=== Enterprise SSO creation finished ===");
   console.log("\n=== Make sure to assign a user or a group to the Enterprise App ===");
 }
@@ -209,29 +207,24 @@ export function c20_post_apply_saml_save(terraformCwd) {
     const servicePrincipal = JSON.parse(servicePrincipalRaw || "{}");
     const expectedSigningThumbprint = (servicePrincipal.preferredTokenSigningKeyThumbprint || "").replace(/[^A-Fa-f0-9]/g, "").toUpperCase();
 
-    const federationMetadataUrl =
-      `https://login.microsoftonline.com/${tenantId}/federationmetadata/2007-06/federationmetadata.xml?appid=${clientId}`;
+    const federationMetadataUrl = `https://login.microsoftonline.com/${tenantId}/federationmetadata/2007-06/federationmetadata.xml?appid=${clientId}`;
 
     console.log("Refreshing AWS SAML provider metadata from Entra federation metadata...");
 
-    execFileSync(
-      "node",
-      [resolve(terraformCwd, "wait_metadata_ready.mjs")],
-      {
-        cwd: terraformCwd,
-        stdio: "inherit",
-        env: {
-          ...process.env,
-          FEDERATION_METADATA_URL: federationMetadataUrl,
-          SAML_PROVIDER_ARN: samlProviderArn,
-          METADATA_PATH: resolve(terraformCwd, "federationmetadata.xml"),
-          MAX_RETRIES: "40",
-          RETRY_DELAY_SECONDS: "5",
-          MIN_SIGNING_CERTS: "1",
-          EXPECTED_SIGNING_THUMBPRINT: expectedSigningThumbprint,
-        },
-      }
-    );
+    execFileSync("node", [resolve(terraformCwd, "wait_metadata_ready.mjs")], {
+      cwd: terraformCwd,
+      stdio: "inherit",
+      env: {
+        ...process.env,
+        FEDERATION_METADATA_URL: federationMetadataUrl,
+        SAML_PROVIDER_ARN: samlProviderArn,
+        METADATA_PATH: resolve(terraformCwd, "federationmetadata.xml"),
+        MAX_RETRIES: "40",
+        RETRY_DELAY_SECONDS: "5",
+        MIN_SIGNING_CERTS: "1",
+        EXPECTED_SIGNING_THUMBPRINT: expectedSigningThumbprint,
+      },
+    });
   } catch (error) {
     console.warn("Post-apply SAML metadata refresh skipped:", error.message);
   }

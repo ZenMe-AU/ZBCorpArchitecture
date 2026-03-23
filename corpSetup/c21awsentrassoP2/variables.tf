@@ -21,11 +21,6 @@ variable "identity_provider_name" {
   type        = string
   default     = "EntraID"
 }
-# variable "role_policy_name" {
-#   description = "The name of the IAM role policy"
-#   type        = string
-#   default     = "AllowAll_Policy"
-# }
 variable "role_name" {
   description = "The name of the IAM Admin role"
   type        = string
@@ -36,8 +31,3 @@ variable "role_ro_name" {
   type        = string
   default     = "ReadOnlyRole"
 }
-# variable "user_name" {
-#   description = "The name of the IAM user for role management"
-#   type        = string
-#   default     = "AzureADRoleManager"
-# }

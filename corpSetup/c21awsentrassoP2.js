@@ -1,5 +1,5 @@
 /**
- * @license SPDX-FileCopyrightText: © 2025 Zenme Pty Ltd <info@zenme.com.au>
+ * @license SPDX-FileCopyrightText: © 2026 Zenme Pty Ltd <info@zenme.com.au>
  * @license SPDX-License-Identifier: MIT
  */
 
@@ -118,24 +118,23 @@ function main(corpEnvFile) {
         .filter(Boolean);
     } catch {}
     console.log("tfStateList:", tfStateList);
-    
-        //IMPORTANT: Need Global Administrator role active to run this code
-        const subscriptionId = env.get("SUBSCRIPTION_ID");
-        if (!subscriptionId) {
-          throw new Error("SUBSCRIPTION_ID is not set in corp.env.");
-        }
-        const tenantId = execSync(`az account show --query tenantId -o tsv`, { encoding: "utf8", stdio: "pipe" }).trim();
-        const accSubscriptionId = getSubscriptionId();
-        if (accSubscriptionId !== subscriptionId) {
-          execSync(`az account set --subscription ${subscriptionId}`, { stdio: "pipe", shell: true });
-          console.log("Switching subscription to", `${corpName}-subscription`);
-        }
 
-        setTfVar("tenant_id", tenantId);
-        setTfVar("subscription_id", subscriptionId);
-       
-        // create sso for aws account
+    //IMPORTANT: Need Global Administrator role active to run this code
+    const subscriptionId = env.get("SUBSCRIPTION_ID");
+    if (!subscriptionId) {
+      throw new Error("SUBSCRIPTION_ID is not set in corp.env.");
+    }
+    const tenantId = execSync(`az account show --query tenantId -o tsv`, { encoding: "utf8", stdio: "pipe" }).trim();
+    const accSubscriptionId = getSubscriptionId();
+    if (accSubscriptionId !== subscriptionId) {
+      execSync(`az account set --subscription ${subscriptionId}`, { stdio: "pipe", shell: true });
+      console.log("Switching subscription to", `${corpName}-subscription`);
+    }
 
+    setTfVar("tenant_id", tenantId);
+    setTfVar("subscription_id", subscriptionId);
+
+    // create sso for aws account
 
     console.log("Starting Terraform initialization.");
     execSync(`terraform init`, { stdio: "pipe", shell: true, cwd: resolve(__dirname, workingDirName) });
