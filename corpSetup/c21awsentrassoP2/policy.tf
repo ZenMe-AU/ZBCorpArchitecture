@@ -1,7 +1,7 @@
 resource "msgraph_resource_action" "claims_policy" {
   api_version  = "beta"
   method       = "PUT"
-  resource_url = "servicePrincipals/${azuread_application_from_template.aws_sso_corp.service_principal_object_id}/claimsPolicy"
+  resource_url = "servicePrincipals/${data.azuread_service_principal.aws_sso_corp.object_id}/claimsPolicy"
 
   body = {
     includeBasicClaimSet         = true
