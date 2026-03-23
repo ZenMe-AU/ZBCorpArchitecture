@@ -177,34 +177,6 @@ function main(corpEnvFile) {
         setTfVar("cloudfront_oac_static_website_name", getCloudfrontOriginAccessControlName(corpName, "web"));
         setTfVar("cloudfront_oac_spa_name", getCloudfrontOriginAccessControlName(corpName, "login"));
         setTfVar("origin_request_policy_name", getOriginRequestPolicyName(corpName, "restricted"));
-
-        // TODO: remove hardcoded names after confirming the tf stable and import logic works as expected
-        const bucketStaticWebsiteName = `${corpName}-web`;
-        const bucketSpaName = `${corpName}-login`;
-        const lambdaEdgeAuthGuardRole = `${corpName}-authGuard-func-role`;
-        const lambdaEdgeAuthGuardName = `${corpName}-authGuard-func`;
-        const cloudfrontOacStaticWebsiteName = `${corpName}-web-oac`;
-        const cloudfrontOacSpaName = `${corpName}-login-oac`;
-        const appRegistrationName = `${corpName}-login`;
-        const originRequestPolicyName = `${corpName}-origin-request-policy`;
-        const cfUnavailableName = `${corpName}-cf-unavailable`;
-        const cfLoginName = `${corpName}-cf-login`;
-        const cfProdName = `${corpName}-cf-prod`;
-        setTfVar("bucket_static_website_name", bucketStaticWebsiteName);
-        setTfVar("bucket_spa_name", bucketSpaName);
-        setTfVar("bucket_static_website_source_folder", bucketStaticWebsiteSourceFolder);
-        setTfVar("bucket_spa_source_folder", bucketSpaSourceFolder);
-        setTfVar("lambda_edge_auth_guard_role", lambdaEdgeAuthGuardRole);
-        setTfVar("lambda_edge_auth_guard_name", lambdaEdgeAuthGuardName);
-        setTfVar("lambda_edge_auth_guard_source_folder", lambdaEdgeAuthGuardSourceFolder);
-        setTfVar("cloudfront_oac_static_website_name", cloudfrontOacStaticWebsiteName);
-        setTfVar("cloudfront_oac_spa_name", cloudfrontOacSpaName);
-        setTfVar("app_registration_name", appRegistrationName);
-        setTfVar("origin_request_policy_name", originRequestPolicyName);
-        setTfVar("cf_unavailable_name", cfUnavailableName);
-        setTfVar("cf_login_name", cfLoginName);
-        setTfVar("cf_prod_name", cfProdName);
-        //==============================================================
         execSync(
           `terraform init -reconfigure\
             -backend-config="resource_group_name=${resourceGroupName}" \
