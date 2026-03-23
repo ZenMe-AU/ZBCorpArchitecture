@@ -8,16 +8,16 @@
 import { execSync } from "child_process";
 import { existsSync, readFileSync, writeFileSync, readdirSync } from "fs";
 import { resolve, dirname } from "path";
-import { getDefaultAzureLocation} from "../util/azureCli.cjs";
+import { getDefaultAzureLocation } from "../util/azureCli.cjs";
 import minimist from "minimist";
 import { fileURLToPath } from "url";
 import dotenv from "dotenv";
-import {main as c01function} from "./c01subscription.js";
-import {main as c02function} from "./c02globalGroups.js";
-import {main as c05function} from "./c05rootrg.js";
-import {main as c20function, manual_message, c20_post_apply_saml_save} from "./c20awsentrasso.js";
-import {main as c21function} from "./c21awsentrassoP2.js";
-import {main as c25function} from "./c25cloudfront.js";
+import { main as c01function } from "./c01subscription.js";
+import { main as c02function } from "./c02globalGroups.js";
+import { main as c05function } from "./c05rootrg.js";
+import { main as c20function, manual_message, c20_post_apply_saml_save } from "./c20awsentrasso.js";
+import { main as c21function } from "./c21awsentrassoP2.js";
+import { main as c25function } from "./c25cloudfront.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -189,16 +189,16 @@ function main() {
       shell: true,
       cwd: resolve(__dirname, workingDirName),
     });
-    
-    // Post-apply SAML configuration for c20awsentrasso
-    if (workingDirName === "c20awsentrasso") {
-      c20_post_apply_saml_save(
-        resolve(__dirname, workingDirName),
-        "https://signin.aws.amazon.com/saml"
-      );
-      manual_message();
-    }
-    
+
+    // // Post-apply SAML configuration for c20awsentrasso
+    // if (workingDirName === "c20awsentrasso") {
+    //   c20_post_apply_saml_save(
+    //     resolve(__dirname, workingDirName),
+    //     "https://signin.aws.amazon.com/saml"
+    //   );
+    //   manual_message();
+    // }
+
     if (!env.get("SUBSCRIPTION_ID")) {
       const newSubscriptionId = execSync(`terraform output -raw new_subscription_id`, {
         encoding: "utf-8",
