@@ -15,14 +15,14 @@
             ```
             NAME=mycompany
             ```
-        1. in variables.tf inside of c01subscription folder inside of corpSetup you will need to fill out the following variable defaults with your account info:
+        1. in variables.tf inside of "c01subscription" folder inside of "corpSetup" you will need to fill out the following variable defaults with your account info:
             - billing_account_name
             - billing_profile_name
             - invoice_section_name
             - contact_emails
         
-            (You can find the values for the first three variables by going to your azure portal signed in as your new account. type invoices in the search bar at the top and select invoices. Then look for invoice sections on the left hand side menu. Then select the first invoice that pops up. Then go to properties on the left hand side and click on it. You should now be able to see invoice_section_name, billing_profile_name and billing_account_name)
-    1. Run the following in the terminal:
+            follow the instruction inside "How to fill out variables tf.docx" to find these values
+    1. Run the following in the terminal under the directory of ZBCorpArchitecture\corpSetup:
         ``` ps
         node initCorpEnvDeploy.js --stage c01
 
