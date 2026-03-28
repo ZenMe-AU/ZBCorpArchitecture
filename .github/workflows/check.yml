@@ -49,7 +49,7 @@ jobs:
                   fi
 
                   echo "ISSUE_NUMBER=$NUMBER" >> $GITHUB_ENV
-                  echo "OLD_BODY=$BODY" >> $GITHUB_ENV
+                  echo "$BODY" > old_body.json
 
             - name: Login to Azure
               id: az_login
@@ -78,7 +78,7 @@ jobs:
                     SP_STATUS="NOT_FOUND_OR_UNAUTHORIZED"
                   fi
 
-                  OLD_JSON=$(jq -R 'fromjson? // {}' <<< "${OLD_BODY}")
+                  OLD_JSON=$(cat old_body.json)
 
                   UPDATED_BODY=$(jq -c \
                     --arg sp_name "$SP_NAME" \
@@ -91,8 +91,10 @@ jobs:
             - name: Update config issue
               shell: bash
               run: |
+                  BODY_STRING=$(cat updated_body.json)
+
                   curl -s -X PATCH \
                     -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
                     -H "Accept: application/vnd.github+json" \
                     https://api.github.com/repos/${{ github.repository }}/issues/${{ env.ISSUE_NUMBER }} \
-                    -d @"updated_body.json"
+                    -d "{\"body\":$BODY_STRING}"
