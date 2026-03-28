@@ -25,7 +25,7 @@ jobs:
                     exit 1
                   fi
 
-            - name: Get or create config issue and body
+            - name: Get or create config issue
               id: config
               shell: bash
               run: |
@@ -49,9 +49,7 @@ jobs:
                   fi
 
                   echo "ISSUE_NUMBER=$NUMBER" >> $GITHUB_ENV
-                  echo "OLD_BODY<<EOF" >> $GITHUB_ENV
-                  echo "$BODY" >> $GITHUB_ENV
-                  echo "EOF" >> $GITHUB_ENV
+                  echo "OLD_BODY=$BODY" >> $GITHUB_ENV
 
             - name: Login to Azure
               id: az_login
@@ -82,16 +80,13 @@ jobs:
 
                   OLD_JSON=$(jq -R 'fromjson? // {}' <<< "${OLD_BODY}")
 
-                  UPDATED_BODY=$(jq -n \
-                      --argjson old "$OLD_JSON" \
-                      --arg sp_name "$SP_NAME" \
-                      --arg sp_id "$SP_ID" \
-                      --arg sp_status "$SP_STATUS" \
-                      '$old | .sp_name=$sp_name | .sp_id=$sp_id | .sp_status=$sp_status')
+                  UPDATED_BODY=$(jq -c \
+                    --arg sp_name "$SP_NAME" \
+                    --arg sp_id "$SP_ID" \
+                    --arg sp_status "$SP_STATUS" \
+                    '.sp_name=$sp_name | .sp_id=$sp_id | .sp_status=$sp_status' <<< "$OLD_JSON")
 
-                  echo "UPDATED_BODY<<EOF" >> $GITHUB_ENV
-                  echo "$UPDATED_BODY" >> $GITHUB_ENV
-                  echo "EOF" >> $GITHUB_ENV
+                  echo "$UPDATED_BODY" > updated_body.json
 
             - name: Update config issue
               shell: bash
@@ -100,4 +95,4 @@ jobs:
                     -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
                     -H "Accept: application/vnd.github+json" \
                     https://api.github.com/repos/${{ github.repository }}/issues/${{ env.ISSUE_NUMBER }} \
-                    -d "$(jq -n --arg body "${{ env.UPDATED_BODY }}" '{body: $body}')"
+                    -d @"updated_body.json"
