@@ -80,11 +80,14 @@ jobs:
                     SP_STATUS="NOT_FOUND_OR_UNAUTHORIZED"
                   fi
 
-                  UPDATED_BODY=$(jq \
-                    --arg sp_name "$SP_NAME" \
-                    --arg sp_id "$SP_ID" \
-                    --arg sp_status "$SP_STATUS" \
-                    '.sp_name=$sp_name | .sp_id=$sp_id | .sp_status=$sp_status' <<< "${OLD_BODY}")
+                  OLD_JSON=$(jq -R 'fromjson? // {}' <<< "${OLD_BODY}")
+
+                  UPDATED_BODY=$(jq -n \
+                      --argjson old "$OLD_JSON" \
+                      --arg sp_name "$SP_NAME" \
+                      --arg sp_id "$SP_ID" \
+                      --arg sp_status "$SP_STATUS" \
+                      '$old | .sp_name=$sp_name | .sp_id=$sp_id | .sp_status=$sp_status')
 
                   echo "UPDATED_BODY<<EOF" >> $GITHUB_ENV
                   echo "$UPDATED_BODY" >> $GITHUB_ENV
