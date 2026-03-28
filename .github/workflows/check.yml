@@ -80,7 +80,9 @@ jobs:
                     --arg sp_status "$SP_STATUS" \
                     '.sp_name=$sp_name | .sp_id=$sp_id | .sp_status=$sp_status')
 
-                  echo "UPDATED_BODY=$UPDATED_BODY" >> $GITHUB_ENV
+                    echo "UPDATED_BODY<<EOF" >> $GITHUB_ENV
+                    echo "$UPDATED_BODY" >> $GITHUB_ENV
+                    echo "EOF" >> $GITHUB_ENV
 
             - name: Update config issue
               shell: bash
