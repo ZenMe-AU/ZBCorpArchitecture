@@ -16,7 +16,7 @@ resource "azurerm_role_assignment" "resource_group_deployer_owner" {
 resource "azuread_group" "lead_developer" {
     display_name       = "LeadDeveloper"
     security_enabled   = true
-    assignable_to_role = true
+    assignable_to_role = var.lead_developer_assignable_to_role
 }
 
 # Add LeadDeveloper security group as member of ResourceGroupDeployer
