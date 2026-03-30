@@ -52,6 +52,7 @@ jobs:
         uses: hashicorp/setup-terraform@v2
         with:
           terraform_version: 1.6.6
+          terraform_wrapper: false
 
       - name: Azure Login
         uses: azure/login@v2
@@ -85,8 +86,26 @@ jobs:
       - name: Run via Node
         id: run_c01
         working-directory: corpSetup
-        run: node initCorpEnvDeploy.js --stage=c01 --planOnly 2> >(tee c01subscription/output.txt >&2)
+        run: node initCorpEnvDeploy.js --stage=c01 --planOnly
         continue-on-error: true
+
+      - name: Write status
+        if: always()
+        working-directory: corpSetup/c01subscription
+        run: |
+          TS=$(date +%s)
+          status="failed"
+          if [ "${{ steps.run_c01.outcome }}" = "success" ]; then
+            status="success"
+          fi
+
+          cat <<EOF > status.json
+          {
+            "stage": "c01",
+            "status": "$status",
+            "timestamp": $TS
+          }
+          EOF
 
       - name: Convert to JSON
         if: steps.run_c01.outcome == 'success'
@@ -99,13 +118,31 @@ jobs:
         with:
           name: c01subscription
           path: |
-            corpSetup/c01subscription
+            corpSetup/c01subscription/*
 
       - name: Run via Node
         id: run_c02
         working-directory: corpSetup
-        run: node initCorpEnvDeploy.js --stage=c02 --planOnly 2> >(tee c02globalGroups/output.txt >&2)
+        run: node initCorpEnvDeploy.js --stage=c02 --planOnly
         continue-on-error: true
+
+      - name: Write status
+        if: always()
+        working-directory: corpSetup/c02globalGroups
+        run: |
+          TS=$(date +%s)
+          status="failed"
+          if [ "${{ steps.run_c02.outcome }}" = "success" ]; then
+            status="success"
+          fi
+
+          cat <<EOF > status.json
+          {
+            "stage": "c02",
+            "status": "$status",
+            "timestamp": $TS
+          }
+          EOF
 
       - name: Convert to JSON
         if: steps.run_c02.outcome == 'success'
@@ -118,13 +155,31 @@ jobs:
         with:
           name: c02globalGroups
           path: |
-            corpSetup/c02globalGroups
+            corpSetup/c02globalGroups/*
 
       - name: Run via Node
         id: run_c05
         working-directory: corpSetup
-        run: node initCorpEnvDeploy.js --stage=c05 --planOnly 2> >(tee c05rootrg/output.txt >&2)
+        run: node initCorpEnvDeploy.js --stage=c05 --planOnly
         continue-on-error: true
+
+      - name: Write status
+        if: always()
+        working-directory: corpSetup/c05rootrg
+        run: |
+          TS=$(date +%s)
+          STATUS="failed"
+          if [ "${{ steps.run_c05.outcome }}" = "success" ]; then
+            STATUS="success"
+          fi
+
+          cat <<EOF > status.json
+          {
+            "stage": "c05",
+            "status": "$STATUS",
+            "timestamp": $TS
+          }
+          EOF
 
       - name: Convert to JSON
         if: steps.run_c05.outcome == 'success'
@@ -137,7 +192,26 @@ jobs:
         with:
           name: c05rootrg
           path: |
-            corpSetup/c05rootrg
+            corpSetup/c05rootrg/*
+
+      - name: Merge status
+        if: always()
+        run: |
+          FILES=$(find corpSetup -name status.json)
+
+          if [ -z "$FILES" ]; then
+            echo "[]" > corpSetup/status.json
+          else
+            jq -s '.' $FILES > corpSetup/status.json
+          fi
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: status
+          path: |
+            corpSetup/status.json
 
   commit:
     permissions:
