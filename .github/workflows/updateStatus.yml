@@ -158,6 +158,8 @@ jobs:
             corpSetup/c05rootrg
 
   commit:
+    permissions:
+      contents: write
     needs: update-status
     if: always()
     runs-on: ubuntu-latest
