@@ -192,6 +192,7 @@ function main(corpEnvFile) {
           {
             encoding: "utf8",
             stdio: "pipe",
+            shell: true,
           }
         ).trim();
       } catch {}
@@ -233,6 +234,7 @@ function main(corpEnvFile) {
         isExisting = !!execSync(`az network dns zone show --resource-group ${resourceGroupName} --name ${dnsName}`, {
           encoding: "utf8",
           stdio: "pipe",
+          shell: true,
         }).trim();
       } catch {}
       if (isExisting) {
@@ -299,6 +301,7 @@ function main(corpEnvFile) {
         const output = execSync(`az monitor app-insights component show --app ${appInsightsName} --resource-group ${resourceGroupName} --query "id" -o tsv`, {
           encoding: "utf8",
           stdio: "pipe",
+          shell: true,
         }).trim();
 
         if (output && output !== "null") {

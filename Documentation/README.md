@@ -25,18 +25,34 @@
     1. Run the following in the terminal under the directory of ZBCorpArchitecture\corpSetup:
         ``` ps
         node initCorpEnvDeploy.js --stage c01
+        ```
+    1. after c01 finished deploying run the following:
+        ```
+        az login
+        ```
+    1. sign in with your azure email.
+    1. when the subscription selection screen pops up make sure to select the new subscription that matches the one inside of corp.env
+    1. once the new subscription has be selected you should now be done with c01 stage
 
 1. Execute c02. Run the following in the terminal:
     ``` ps
     node initCorpEnvDeploy.js --stage c02
 1. Execute c05
-    1. in corp.env located in CorpSetup folder fill out Name= with your company name
-    1. then fill out DNS= with your company's DNS
+    1. in corp.env located in CorpSetup folder fill out DNS= with your company's DNS
     1. your corp.env should look something like this:
     ```ps
     NAME=mycompany
     DNS=mycompany.com.au
+    SUBSCRIPTION_ID=123a45b6-a1bb-1234-abc1-123a4b5c6789
     ```
+    1. Execute c05. Run the following in the terminal:
+    ``` ps
+    node initCorpEnvDeploy.js --stage c05
+    ```
+    1. after the deployment finishes go to the dns zone created in azure which should have the same name as the dns in corp.env
+    find the server details and give them to your company's dns provider to be stored
+    1. once the dns server details have been stored on the provider's end you are finished with executing c05
+
     
 1. Execute c20
     1. log into AWS account by typing the following in your terminal: 
