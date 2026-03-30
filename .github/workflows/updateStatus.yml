@@ -85,7 +85,7 @@ jobs:
       - name: Run via Node
         id: run_c01
         working-directory: corpSetup
-        run: node initCorpEnvDeploy.js --stage=c01 --planOnly 2> >(tee corpSetup/c01subscription/output.txt >&2)
+        run: node initCorpEnvDeploy.js --stage=c01 --planOnly 2> >(tee c01subscription/output.txt >&2)
         continue-on-error: true
 
       - name: Convert to JSON
@@ -104,7 +104,7 @@ jobs:
       - name: Run via Node
         id: run_c02
         working-directory: corpSetup
-        run: node initCorpEnvDeploy.js --stage=c02 --planOnly 2> >(tee corpSetup/c02globalGroups/output.txt >&2)
+        run: node initCorpEnvDeploy.js --stage=c02 --planOnly 2> >(tee c02globalGroups/output.txt >&2)
         continue-on-error: true
 
       - name: Convert to JSON
@@ -123,7 +123,7 @@ jobs:
       - name: Run via Node
         id: run_c05
         working-directory: corpSetup
-        run: node initCorpEnvDeploy.js --stage=c05 --planOnly 2> >(tee corpSetup/c05rootrg/output.txt >&2)
+        run: node initCorpEnvDeploy.js --stage=c05 --planOnly 2> >(tee c05rootrg/output.txt >&2)
         continue-on-error: true
 
       - name: Convert to JSON
