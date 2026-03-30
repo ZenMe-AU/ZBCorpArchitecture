@@ -1,4 +1,4 @@
-name: Check Service Principal
+name: update status
 
 on:
   workflow_dispatch:
@@ -83,73 +83,83 @@ jobs:
           echo "ARM_USE_OIDC=true" >> $GITHUB_ENV
 
       - name: Run via Node
+        id: run_c01
         working-directory: corpSetup
         run: node initCorpEnvDeploy.js --stage=c01 --planOnly
+        continue-on-error: true
 
       - name: Convert to JSON
+        if: steps.run_c01.outcome == 'success'
         working-directory: corpSetup/c01subscription
         run: terraform show -json tfplan > plan.json
 
       - name: Save node output
+        if: always()
         working-directory: corpSetup/c01subscription
         run: |
           echo "node=c01subscription" > output.txt
 
       - name: Upload artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: c01subscription
           path: |
-            corpSetup/c01subscription/tfplan
-            corpSetup/c01subscription/plan.json
-            corpSetup/c01subscription/output.txt
+            corpSetup/c01subscription
 
       - name: Run via Node
+        id: run_c02
         working-directory: corpSetup
         run: node initCorpEnvDeploy.js --stage=c02 --planOnly
+        continue-on-error: true
 
       - name: Convert to JSON
+        if: steps.run_c02.outcome == 'success'
         working-directory: corpSetup/c02globalGroups
         run: terraform show -json tfplan > plan.json
 
       - name: Save node output
+        if: always()
         working-directory: corpSetup/c02globalGroups
         run: |
           echo "node=c02globalGroups" > output.txt
 
       - name: Upload artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: c02globalGroups
           path: |
-            corpSetup/c02globalGroups/tfplan
-            corpSetup/c02globalGroups/plan.json
-            corpSetup/c02globalGroups/output.txt
+            corpSetup/c02globalGroups
 
       - name: Run via Node
+        id: run_c05
         working-directory: corpSetup
         run: node initCorpEnvDeploy.js --stage=c05 --planOnly
+        continue-on-error: true
 
       - name: Convert to JSON
+        if: steps.run_c05.outcome == 'success'
         working-directory: corpSetup/c05rootrg
         run: terraform show -json tfplan > plan.json
 
       - name: Save node output
+        if: always()
         working-directory: corpSetup/c05rootrg
         run: |
           echo "node=c05rootrg" > output.txt
 
       - name: Upload artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: c05rootrg
           path: |
-            corpSetup/c05rootrg/tfplan
-            corpSetup/c05rootrg/plan.json
-            corpSetup/c05rootrg/output.txt
+            corpSetup/c05rootrg
 
   commit:
     needs: update-status
+    if: always()
     runs-on: ubuntu-latest
 
     steps:
