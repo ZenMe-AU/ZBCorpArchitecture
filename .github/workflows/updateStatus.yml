@@ -116,9 +116,10 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
+          if-no-files-found: ignore
           name: c01subscription
           path: |
-            corpSetup/c01subscription/*
+            corpSetup/c01subscription
 
       - name: Run via Node
         id: run_c02
@@ -153,9 +154,10 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
+          if-no-files-found: ignore
           name: c02globalGroups
           path: |
-            corpSetup/c02globalGroups/*
+            corpSetup/c02globalGroups
 
       - name: Run via Node
         id: run_c05
@@ -190,28 +192,10 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
+          if-no-files-found: ignore
           name: c05rootrg
           path: |
-            corpSetup/c05rootrg/*
-
-      - name: Merge status
-        if: always()
-        run: |
-          FILES=$(find corpSetup -name status.json)
-
-          if [ -z "$FILES" ]; then
-            echo "[]" > corpSetup/status.json
-          else
-            jq -s '.' $FILES > corpSetup/status.json
-          fi
-
-      - name: Upload artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: status
-          path: |
-            corpSetup/status.json
+            corpSetup/c05rootrg
 
   commit:
     permissions:
@@ -232,11 +216,26 @@ jobs:
         run: |
           mkdir -p corpSetup
 
-          for dir in artifacts/*; do
-            name=$(basename "$dir")
-            mkdir -p corpSetup/$name
-            cp -r "$dir"/* corpSetup/$name/
-          done
+          if [ -d artifacts ]; then
+            for dir in artifacts/*; do
+              [ -d "$dir" ] || continue
+
+              name=$(basename "$dir")
+              mkdir -p corpSetup/$name
+              cp -r "$dir"/* corpSetup/$name/ || true
+            done
+          fi
+
+      - name: Merge status
+        if: always()
+        run: |
+          FILES=$(find corpSetup -name status.json 2>/dev/null)
+
+          if [ -z "$FILES" ]; then
+            echo "[]" > corpSetup/status.json
+          else
+            jq -s '.' $FILES > corpSetup/status.json
+          fi
 
       - name: Commit results
         run: |
