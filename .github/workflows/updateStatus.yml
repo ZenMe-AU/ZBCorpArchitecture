@@ -85,19 +85,13 @@ jobs:
       - name: Run via Node
         id: run_c01
         working-directory: corpSetup
-        run: node initCorpEnvDeploy.js --stage=c01 --planOnly
+        run: node initCorpEnvDeploy.js --stage=c01 --planOnly 2> >(tee corpSetup/c01subscription/output.txt >&2)
         continue-on-error: true
 
       - name: Convert to JSON
         if: steps.run_c01.outcome == 'success'
         working-directory: corpSetup/c01subscription
         run: terraform show -json tfplan > plan.json
-
-      - name: Save node output
-        if: always()
-        working-directory: corpSetup/c01subscription
-        run: |
-          echo "node=c01subscription" > output.txt
 
       - name: Upload artifacts
         if: always()
@@ -110,19 +104,13 @@ jobs:
       - name: Run via Node
         id: run_c02
         working-directory: corpSetup
-        run: node initCorpEnvDeploy.js --stage=c02 --planOnly
+        run: node initCorpEnvDeploy.js --stage=c02 --planOnly 2> >(tee corpSetup/c02globalGroups/output.txt >&2)
         continue-on-error: true
 
       - name: Convert to JSON
         if: steps.run_c02.outcome == 'success'
         working-directory: corpSetup/c02globalGroups
         run: terraform show -json tfplan > plan.json
-
-      - name: Save node output
-        if: always()
-        working-directory: corpSetup/c02globalGroups
-        run: |
-          echo "node=c02globalGroups" > output.txt
 
       - name: Upload artifacts
         if: always()
@@ -135,19 +123,13 @@ jobs:
       - name: Run via Node
         id: run_c05
         working-directory: corpSetup
-        run: node initCorpEnvDeploy.js --stage=c05 --planOnly
+        run: node initCorpEnvDeploy.js --stage=c05 --planOnly 2> >(tee corpSetup/c05rootrg/output.txt >&2)
         continue-on-error: true
 
       - name: Convert to JSON
         if: steps.run_c05.outcome == 'success'
         working-directory: corpSetup/c05rootrg
         run: terraform show -json tfplan > plan.json
-
-      - name: Save node output
-        if: always()
-        working-directory: corpSetup/c05rootrg
-        run: |
-          echo "node=c05rootrg" > output.txt
 
       - name: Upload artifacts
         if: always()
