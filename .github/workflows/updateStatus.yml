@@ -1,0 +1,184 @@
+name: Check Service Principal
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch name"
+        required: false
+        default: "dev"
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  update-status:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check required secrets
+        shell: bash
+        run: |
+          missing=0
+          [ -z "${{ secrets.AZURE_CLIENT_ID }}" ] && echo "Missing AZURE_CLIENT_ID" && missing=1
+          [ -z "${{ secrets.AZURE_TENANT_ID }}" ] && echo "Missing AZURE_TENANT_ID" && missing=1
+          [ -z "${{ secrets.AZURE_SUBSCRIPTION_ID }}" ] && echo "Missing AZURE_SUBSCRIPTION_ID" && missing=1
+          if [ $missing -eq 1 ]; then
+            echo "Some required secrets are missing. Exiting."
+            exit 1
+          fi
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: "pnpm"
+
+      - name: Install dependencies
+        shell: bash
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.6.6
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{  secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Verify Azure Login
+        shell: bash
+        run: az account show
+
+      # - name: Configure AWS credentials
+      #   uses: aws-actions/configure-aws-credentials@v4
+      #   with:
+      #     role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/${{ secrets.AWS_ROLE_NAME }}
+      #     aws-region: ap-northeast-1
+
+      # - name: verify AWS credentials
+      #   shell: bash
+      #   run: aws sts get-caller-identity
+
+      - name: Set Terraform environment variables
+        shell: bash
+        run: |
+          echo "ARM_CLIENT_ID=${{ secrets.AZURE_CLIENT_ID }}" >> $GITHUB_ENV
+          echo "ARM_TENANT_ID=${{ secrets.AZURE_TENANT_ID }}" >> $GITHUB_ENV
+          echo "ARM_SUBSCRIPTION_ID=${{ secrets.AZURE_SUBSCRIPTION_ID }}" >> $GITHUB_ENV
+          echo "ARM_USE_OIDC=true" >> $GITHUB_ENV
+
+      - name: Run via Node
+        working-directory: corpSetup
+        run: node initCorpEnvDeploy.js --stage=c01 --planOnly
+
+      - name: Convert to JSON
+        working-directory: corpSetup/c01subscription
+        run: terraform show -json tfplan > plan.json
+
+      - name: Save node output
+        working-directory: corpSetup/c01subscription
+        run: |
+          echo "node=c01subscription" > output.txt
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: c01subscription
+          path: |
+            corpSetup/c01subscription/tfplan
+            corpSetup/c01subscription/plan.json
+            corpSetup/c01subscription/output.txt
+
+      - name: Run via Node
+        working-directory: corpSetup
+        run: node initCorpEnvDeploy.js --stage=c02 --planOnly
+
+      - name: Convert to JSON
+        working-directory: corpSetup/c02globalGroups
+        run: terraform show -json tfplan > plan.json
+
+      - name: Save node output
+        working-directory: corpSetup/c02globalGroups
+        run: |
+          echo "node=c02globalGroups" > output.txt
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: c02globalGroups
+          path: |
+            corpSetup/c02globalGroups/tfplan
+            corpSetup/c02globalGroups/plan.json
+            corpSetup/c02globalGroups/output.txt
+
+      - name: Run via Node
+        working-directory: corpSetup
+        run: node initCorpEnvDeploy.js --stage=c05 --planOnly
+
+      - name: Convert to JSON
+        working-directory: corpSetup/c05rootrg
+        run: terraform show -json tfplan > plan.json
+
+      - name: Save node output
+        working-directory: corpSetup/c05rootrg
+        run: |
+          echo "node=c05rootrg" > output.txt
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: c05rootrg
+          path: |
+            corpSetup/c05rootrg/tfplan
+            corpSetup/c05rootrg/plan.json
+            corpSetup/c05rootrg/output.txt
+
+  commit:
+    needs: update-status
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Organize files
+        run: |
+          mkdir -p corpSetup
+
+          for dir in artifacts/*; do
+            name=$(basename "$dir")
+            mkdir -p corpSetup/$name
+            cp -r "$dir"/* corpSetup/$name/
+          done
+
+      - name: Commit results
+        run: |
+          BRANCH=${{ github.event.inputs.branch }}
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+
+          git fetch origin || true
+          git checkout -B $BRANCH origin/$BRANCH || git checkout -b $BRANCH
+
+          git add corpSetup
+          git commit -m "Update status" || echo "no changes"
+          git push origin $BRANCH
