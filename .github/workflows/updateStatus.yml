@@ -94,15 +94,18 @@ jobs:
         working-directory: corpSetup/c01subscription
         run: |
           TS=$(date +%s)
-          status="failed"
+          STATUS="failed"
+          PLAN_PATH=""
           if [ "${{ steps.run_c01.outcome }}" = "success" ]; then
-            status="success"
+            STATUS="success"
+            PLAN_PATH="corpSetup/c01subscription/plan.json"
           fi
 
           cat <<EOF > status.json
           {
             "stage": "c01",
-            "status": "$status",
+            "planPath": "$PLAN_PATH",
+            "status": "$STATUS",
             "timestamp": $TS
           }
           EOF
@@ -132,15 +135,18 @@ jobs:
         working-directory: corpSetup/c02globalGroups
         run: |
           TS=$(date +%s)
-          status="failed"
+          STATUS="failed"
+          PLAN_PATH=""
           if [ "${{ steps.run_c02.outcome }}" = "success" ]; then
-            status="success"
+            STATUS="success"
+            PLAN_PATH="corpSetup/c02globalGroups/plan.json"
           fi
 
           cat <<EOF > status.json
           {
             "stage": "c02",
-            "status": "$status",
+            "planPath": "$PLAN_PATH",
+            "status": "$STATUS",
             "timestamp": $TS
           }
           EOF
@@ -171,13 +177,16 @@ jobs:
         run: |
           TS=$(date +%s)
           STATUS="failed"
+          PLAN_PATH=""
           if [ "${{ steps.run_c05.outcome }}" = "success" ]; then
             STATUS="success"
+            PLAN_PATH="corpSetup/c05rootrg/plan.json"
           fi
 
           cat <<EOF > status.json
           {
             "stage": "c05",
+            "planPath": "$PLAN_PATH",
             "status": "$STATUS",
             "timestamp": $TS
           }
