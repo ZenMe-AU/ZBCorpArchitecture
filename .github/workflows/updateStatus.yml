@@ -360,12 +360,14 @@ jobs:
 
       - name: Merge status
         run: |
-          FILES=$(find corpSetup -name status.json 2>/dev/null)
+          FILES=$(find corpSetup -mindepth 2 -name status.json)
 
           if [ -z "$FILES" ]; then
             echo "[]" > /tmp/stages.json
+            LATEST_TS=$(date +%s)
           else
             jq -s '.' $FILES > /tmp/stages.json
+            LATEST_TS=$(jq '[.[] | .timestamp] | max' /tmp/stages.json)
           fi
 
           # generate cloud status
@@ -390,7 +392,9 @@ jobs:
           jq -n \
             --slurpfile stages /tmp/stages.json \
             --slurpfile cloud /tmp/cloud.json \
+            --arg updatedAt "$LATEST_TS" \
             '{
+              updatedAt: ($updatedAt | tonumber),
               azure: $cloud[0].azure,
               aws: $cloud[0].aws,
               stages: $stages[0]
