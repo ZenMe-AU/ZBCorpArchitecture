@@ -57,7 +57,7 @@ jobs:
       - name: Azure Login
         uses: azure/login@v2
         with:
-          client-id: ${{  secrets.AZURE_CLIENT_ID }}
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
@@ -65,15 +65,15 @@ jobs:
         shell: bash
         run: az account show
 
-      # - name: Configure AWS credentials
-      #   uses: aws-actions/configure-aws-credentials@v4
-      #   with:
-      #     role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/${{ secrets.AWS_ROLE_NAME }}
-      #     aws-region: ap-northeast-1
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/${{ secrets.AWS_ROLE_NAME }}
+          aws-region: us-east-1
 
-      # - name: verify AWS credentials
-      #   shell: bash
-      #   run: aws sts get-caller-identity
+      - name: verify AWS credentials
+        shell: bash
+        run: aws sts get-caller-identity
 
       - name: Set Terraform environment variables
         shell: bash
@@ -206,6 +206,129 @@ jobs:
           path: |
             corpSetup/c05rootrg
 
+      - name: Run via Node
+        id: run_c20
+        working-directory: corpSetup
+        run: node initCorpEnvDeploy.js --stage=c20 --planOnly
+        continue-on-error: true
+
+      - name: Write status
+        if: always()
+        working-directory: corpSetup/c20awsentrasso
+        run: |
+          TS=$(date +%s)
+          STATUS="failed"
+          PLAN_PATH=""
+          if [ "${{ steps.run_c20.outcome }}" = "success" ]; then
+            STATUS="success"
+            PLAN_PATH="corpSetup/c20awsentrasso/plan.json"
+          fi
+
+          cat <<EOF > status.json
+          {
+            "stage": "c20",
+            "planPath": "$PLAN_PATH",
+            "status": "$STATUS",
+            "timestamp": $TS
+          }
+          EOF
+
+      - name: Convert to JSON
+        if: steps.run_c20.outcome == 'success'
+        working-directory: corpSetup/c20awsentrasso
+        run: terraform show -json tfplan > plan.json
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          if-no-files-found: ignore
+          name: c20awsentrasso
+          path: |
+            corpSetup/c20awsentrasso
+
+      - name: Run via Node
+        id: run_c21
+        working-directory: corpSetup
+        run: node initCorpEnvDeploy.js --stage=c21 --planOnly
+        continue-on-error: true
+
+      - name: Write status
+        if: always()
+        working-directory: corpSetup/c21awsentrassoP2
+        run: |
+          TS=$(date +%s)
+          STATUS="failed"
+          PLAN_PATH=""
+          if [ "${{ steps.run_c21.outcome }}" = "success" ]; then
+            STATUS="success"
+            PLAN_PATH="corpSetup/c21awsentrassoP2/plan.json"
+          fi
+
+          cat <<EOF > status.json
+          {
+            "stage": "c21",
+            "planPath": "$PLAN_PATH",
+            "status": "$STATUS",
+            "timestamp": $TS
+          }
+          EOF
+
+      - name: Convert to JSON
+        if: steps.run_c21.outcome == 'success'
+        working-directory: corpSetup/c21awsentrassoP2
+        run: terraform show -json tfplan > plan.json
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          if-no-files-found: ignore
+          name: c21awsentrassoP2
+          path: |
+            corpSetup/c21awsentrassoP2
+
+      - name: Run via Node
+        id: run_c25
+        working-directory: corpSetup
+        run: node initCorpEnvDeploy.js --stage=c25 --planOnly
+        continue-on-error: true
+
+      - name: Write status
+        if: always()
+        working-directory: corpSetup/c25cloudfront
+        run: |
+          TS=$(date +%s)
+          STATUS="failed"
+          PLAN_PATH=""
+          if [ "${{ steps.run_c25.outcome }}" = "success" ]; then
+            STATUS="success"
+            PLAN_PATH="corpSetup/c25cloudfront/plan.json"
+          fi
+
+          cat <<EOF > status.json
+          {
+            "stage": "c25",
+            "planPath": "$PLAN_PATH",
+            "status": "$STATUS",
+            "timestamp": $TS
+          }
+          EOF
+
+      - name: Convert to JSON
+        if: steps.run_c25.outcome == 'success'
+        working-directory: corpSetup/c25cloudfront
+        run: terraform show -json tfplan > plan.json
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          if-no-files-found: ignore
+          name: c25cloudfront
+          path: |
+            corpSetup/c25cloudfront
+
   commit:
     permissions:
       contents: write
@@ -236,15 +359,42 @@ jobs:
           fi
 
       - name: Merge status
-        if: always()
         run: |
           FILES=$(find corpSetup -name status.json 2>/dev/null)
 
           if [ -z "$FILES" ]; then
-            echo "[]" > corpSetup/status.json
+            echo "[]" > /tmp/stages.json
           else
-            jq -s '.' $FILES > corpSetup/status.json
+            jq -s '.' $FILES > /tmp/stages.json
           fi
+
+          # generate cloud status
+          AZURE_OK=true
+          AWS_OK=true
+
+          [ -z "${{ secrets.AZURE_CLIENT_ID }}" ] && AZURE_OK=false
+          [ -z "${{ secrets.AZURE_TENANT_ID }}" ] && AZURE_OK=false
+          [ -z "${{ secrets.AZURE_SUBSCRIPTION_ID }}" ] && AZURE_OK=false
+
+          [ -z "${{ secrets.AWS_ACCOUNT_ID }}" ] && AWS_OK=false
+          [ -z "${{ secrets.AWS_ROLE_NAME }}" ] && AWS_OK=false
+
+          cat <<EOF > /tmp/cloud.json
+          {
+            "azure": { "configured": $AZURE_OK },
+            "aws": { "configured": $AWS_OK }
+          }
+          EOF
+
+          # final output
+          jq -n \
+            --slurpfile stages /tmp/stages.json \
+            --slurpfile cloud /tmp/cloud.json \
+            '{
+              azure: $cloud[0].azure,
+              aws: $cloud[0].aws,
+              stages: $stages[0]
+            }' > corpSetup/status.json
 
       - name: Commit results
         run: |
