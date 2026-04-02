@@ -88,7 +88,8 @@ jobs:
           echo "ARM_SUBSCRIPTION_ID=${{ secrets.AZURE_SUBSCRIPTION_ID }}" >> $GITHUB_ENV
           echo "ARM_USE_OIDC=true" >> $GITHUB_ENV
 
-      - name: Run stage status action
+      - name: Run stage c01
+        continue-on-error: true
         uses: ./.github/actions/update-stage-status
         with:
           stage: c01
@@ -98,7 +99,9 @@ jobs:
           azure_ok: ${{ steps.az_login.outcome == 'success' }}
           aws_ok: ${{ steps.aws_login.outcome == 'success' }}
 
-      - name: Run stage status action
+      - name: Run stage c02
+        continue-on-error: true
+
         uses: ./.github/actions/update-stage-status
         with:
           stage: c02
@@ -108,7 +111,9 @@ jobs:
           azure_ok: ${{ steps.az_login.outcome == 'success' }}
           aws_ok: ${{ steps.aws_login.outcome == 'success' }}
 
-      - name: Run stage status action
+      - name: Run stage c05
+        continue-on-error: true
+
         uses: ./.github/actions/update-stage-status
         with:
           stage: c05
@@ -118,7 +123,8 @@ jobs:
           azure_ok: ${{ steps.az_login.outcome == 'success' }}
           aws_ok: ${{ steps.aws_login.outcome == 'success' }}
 
-      - name: Run stage status action
+      - name: Run stage c20
+        continue-on-error: true
         uses: ./.github/actions/update-stage-status
         with:
           stage: c20
@@ -128,7 +134,8 @@ jobs:
           azure_ok: ${{ steps.az_login.outcome == 'success' }}
           aws_ok: ${{ steps.aws_login.outcome == 'success' }}
 
-      - name: Run stage status action
+      - name: Run stage c21
+        continue-on-error: true
         uses: ./.github/actions/update-stage-status
         with:
           stage: c21
@@ -138,7 +145,8 @@ jobs:
           azure_ok: ${{ steps.az_login.outcome == 'success' }}
           aws_ok: ${{ steps.aws_login.outcome == 'success' }}
 
-      - name: Run stage status action
+      - name: Run stage c25
+        continue-on-error: true
         uses: ./.github/actions/update-stage-status
         with:
           stage: c25
