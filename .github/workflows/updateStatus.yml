@@ -233,6 +233,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.branch }}
+          fetch-depth: 0
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -301,10 +304,11 @@ jobs:
           git config user.name "github-actions"
           git config user.email "actions@github.com"
 
-          git fetch origin || true
-          git checkout $BRANCH || git checkout -b $BRANCH
-          git pull --rebase origin $BRANCH || true
-
+          # commit local changes if any
           git add corpSetup
-          git commit -m "Update status" || echo "no changes"
+          git diff --cached --quiet || git commit -m "Update status"
+
+          # fetch remote updates > rebase local commits onto remote > push
+          git fetch origin
+          git rebase origin/$BRANCH
           git push origin $BRANCH
