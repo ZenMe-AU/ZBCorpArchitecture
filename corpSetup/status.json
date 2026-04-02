@@ -1,0 +1,59 @@
+{
+  "updatedAt": 1775160938,
+  "azure": {
+    "configured": true
+  },
+  "aws": {
+    "configured": true
+  },
+  "stages": [
+    {
+      "runId": "23919840087",
+      "stage": "c21",
+      "name": "c21awsentrassoP2",
+      "planPath": "",
+      "status": "failed",
+      "timestamp": 1775160901
+    },
+    {
+      "runId": "23919840087",
+      "stage": "c25",
+      "name": "c25cloudfront",
+      "planPath": "corpSetup/c25cloudfront/plan.json",
+      "status": "success",
+      "timestamp": 1775160938
+    },
+    {
+      "runId": "23919840087",
+      "stage": "c05",
+      "name": "c05rootrg",
+      "planPath": "corpSetup/c05rootrg/plan.json",
+      "status": "success",
+      "timestamp": 1775160883
+    },
+    {
+      "runId": "23919840087",
+      "stage": "c01",
+      "name": "c01subscription",
+      "planPath": "",
+      "status": "failed",
+      "timestamp": 1775160773
+    },
+    {
+      "runId": "23919840087",
+      "stage": "c20",
+      "name": "c20awsentrasso",
+      "planPath": "corpSetup/c20awsentrasso/plan.json",
+      "status": "success",
+      "timestamp": 1775160889
+    },
+    {
+      "runId": "23919840087",
+      "stage": "c02",
+      "name": "c02globalGroups",
+      "planPath": "corpSetup/c02globalGroups/plan.json",
+      "status": "success",
+      "timestamp": 1775160787
+    }
+  ]
+}
