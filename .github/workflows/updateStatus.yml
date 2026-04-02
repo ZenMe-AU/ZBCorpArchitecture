@@ -7,13 +7,79 @@ on:
         description: "Branch name"
         required: false
         default: "dev"
+      env:
+        description: "env json string"
+        required: false
 
 permissions:
   contents: read
   id-token: write
 
 jobs:
+  update-env:
+    permissions:
+      contents: write
+    if: ${{ github.event.inputs.env != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Merge env file
+        shell: bash
+        run: |
+          FILE="corpSetup/corp.env"
+
+          # parse old env safely
+          OLD_JSON="{}"
+
+          if [ -f "$FILE" ]; then
+            while IFS='=' read -r key value; do
+              [[ -z "$key" || "$key" =~ ^# ]] && continue
+
+              OLD_JSON=$(jq -n \
+                --argjson obj "$OLD_JSON" \
+                --arg k "$key" \
+                --arg v "$value" \
+                '$obj + {($k): $v}')
+            done < "$FILE"
+          fi
+
+          # parse new env
+          NEW_JSON=$(cat <<EOF
+          ${{ github.event.inputs.env }}
+          EOF
+          )
+
+          if [ -z "$NEW_JSON" ] || [ "$NEW_JSON" = "null" ]; then
+            NEW_JSON="{}"
+          fi
+
+          # merge env
+          MERGED=$(jq -n \
+            --argjson old "$OLD_JSON" \
+            --argjson new "$NEW_JSON" \
+            '$old * $new')
+
+          echo "$MERGED" > merged.json
+
+          # back to .env
+          jq -r 'to_entries | .[] | "\(.key)=\(.value)"' merged.json > "$FILE"
+
+      - name: Commit env
+        run: |
+          BRANCH=${{ github.event.inputs.branch }}
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+
+          git fetch origin || true
+          git checkout $BRANCH || git checkout -b $BRANCH
+          git pull --rebase origin $BRANCH || true
+
+          git add corpSetup/corp.env
+          git diff --cached --quiet || git commit -m "update env"
+          git push origin $BRANCH
+
   update-status:
+    needs: update-env
     runs-on: ubuntu-latest
 
     steps:
@@ -31,6 +97,8 @@ jobs:
 
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.branch }}
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -93,7 +161,7 @@ jobs:
         uses: ./.github/actions/update-stage-status
         with:
           stage: c01
-          dir: c01cloudfront
+          dir: c01subscription
           needs_azure: true
           needs_aws: false
           azure_ok: ${{ steps.az_login.outcome == 'success' }}
@@ -234,7 +302,8 @@ jobs:
           git config user.email "actions@github.com"
 
           git fetch origin || true
-          git checkout -B $BRANCH origin/$BRANCH || git checkout -b $BRANCH
+          git checkout $BRANCH || git checkout -b $BRANCH
+          git pull --rebase origin $BRANCH || true
 
           git add corpSetup
           git commit -m "Update status" || echo "no changes"
