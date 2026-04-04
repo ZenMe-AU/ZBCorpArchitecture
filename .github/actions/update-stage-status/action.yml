@@ -24,6 +24,18 @@ inputs:
     description: "Whether AWS login is expected to succeed"
     required: false
     default: "true"
+  stage_status_file:
+    description: "Path to stage status file"
+    required: false
+    default: "status.json"
+  binary_plan_file:
+    description: "Path to Terraform plan file"
+    required: false
+    default: "tfplan"
+  json_plan_file:
+    description: "Path to JSON Terraform plan file"
+    required: false
+    default: "plan.json"
 
 runs:
   using: "composite"
@@ -44,8 +56,8 @@ runs:
       shell: bash
       working-directory: corpSetup/${{ inputs.dir }}
       run: |
-        if [ -f tfplan ]; then
-          terraform show -json tfplan > plan.json
+        if [ -f ${{ inputs.binary_plan_file }} ]; then
+          terraform show -json ${{ inputs.binary_plan_file }} > ${{ inputs.json_plan_file }}
         fi
 
     - name: Write status
@@ -59,10 +71,10 @@ runs:
 
         if [ "${{ steps.run.outcome }}" = "success" ]; then
           STATUS="success"
-          PLAN_PATH="corpSetup/${{ inputs.dir }}/plan.json"
+          PLAN_PATH="corpSetup/${{ inputs.dir }}/${{ inputs.json_plan_file }}"
         fi
 
-        cat <<EOF > status.json
+        cat <<EOF > corpSetup/${{ inputs.dir }}/${{ inputs.stage_status_file }}
         {
           "runId": "${{ github.run_id }}",
           "stage": "${{ inputs.stage }}",
@@ -79,4 +91,7 @@ runs:
       with:
         if-no-files-found: ignore
         name: ${{ inputs.dir }}
-        path: corpSetup/${{ inputs.dir }}
+        path: |
+          corpSetup/${{ inputs.dir }}/${{ inputs.stage_status_file }}
+          corpSetup/${{ inputs.dir }}/${{ inputs.json_plan_file }}
+          corpSetup/${{ inputs.dir }}/${{ inputs.binary_plan_file }}
