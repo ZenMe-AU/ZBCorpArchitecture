@@ -16,6 +16,13 @@ permissions:
   contents: read
   id-token: write
 
+env:
+  BRANCH: ${{ github.event.inputs.branch }}
+  ENV_ARTIFACT_NAME: new-env
+  ENV_NAME: corp.env
+  ENV_PATH: corpSetup/corp.env
+  DEPLOYMENT_CHANGESET_PATH: corpSetup/deploymentChangeset.json
+
 jobs:
   update-env:
     permissions:
@@ -27,12 +34,10 @@ jobs:
       - name: Merge env file
         shell: bash
         run: |
-          FILE="corpSetup/corp.env"
-
           # parse old env safely
           OLD_JSON="{}"
 
-          if [ -f "$FILE" ]; then
+          if [ -f "$ENV_PATH" ]; then
             while IFS='=' read -r key value; do
               [[ -z "$key" || "$key" =~ ^# ]] && continue
 
@@ -41,7 +46,7 @@ jobs:
                 --arg k "$key" \
                 --arg v "$value" \
                 '$obj + {($k): $v}')
-            done < "$FILE"
+            done < "$ENV_PATH"
           fi
 
           # parse new env
@@ -63,24 +68,30 @@ jobs:
           echo "$MERGED" > merged.json
 
           # back to .env
-          jq -r 'to_entries | .[] | "\(.key)=\(.value)"' merged.json > "$FILE"
+          jq -r 'to_entries | .[] | "\(.key)=\(.value)"' merged.json > "$ENV_PATH"
 
-      - name: Commit env
-        run: |
-          BRANCH=${{ github.event.inputs.branch }}
-          git config user.name "github-actions"
-          git config user.email "actions@github.com"
+      # - name: Commit env
+      #   run: |
+      #     BRANCH=${{ github.event.inputs.branch }}
+      #     git config user.name "github-actions"
+      #     git config user.email "actions@github.com"
 
-          git fetch origin || true
-          git checkout $BRANCH || git checkout -b $BRANCH
-          git pull --rebase origin $BRANCH || true
+      #     git fetch origin || true
+      #     git checkout $BRANCH || git checkout -b $BRANCH
+      #     git pull --rebase origin $BRANCH || true
 
-          git add corpSetup/corp.env
-          git diff --cached --quiet || git commit -m "update env"
-          git push origin $BRANCH
+      #     git add corpSetup/corp.env
+      #     git diff --cached --quiet || git commit -m "update env"
+      #     git push origin $BRANCH
+      - name: Upload merged env
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ENV_ARTIFACT_NAME }}
+          path: ${{ env.ENV_PATH }}
 
-  update-status:
+  plan-changes:
     needs: update-env
+    if: always()
     runs-on: ubuntu-latest
 
     steps:
@@ -100,6 +111,17 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.inputs.branch }}
+
+      - name: Download env artifact
+        if: ${{ github.event.inputs.env != '' }}
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.ENV_ARTIFACT_NAME }}
+          path: artifacts
+      - name: Apply env
+        if: ${{ github.event.inputs.env != '' }}
+        run: |
+          cp artifacts/$ENV_ARTIFACT_NAME/$ENV_NAME $ENV_PATH
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -228,7 +250,7 @@ jobs:
   commit:
     permissions:
       contents: write
-    needs: update-status
+    needs: plan-changes
     if: always()
     runs-on: ubuntu-latest
 
@@ -297,11 +319,16 @@ jobs:
               azure: $cloud[0].azure,
               aws: $cloud[0].aws,
               stages: $stages[0]
-            }' > corpSetup/status.json
+            }' > $DEPLOYMENT_CHANGESET_PATH
+
+      - name: Update env file
+        run: |
+          if [ -f artifacts/$ENV_ARTIFACT_NAME/$ENV_NAME ]; then
+            cp artifacts/$ENV_ARTIFACT_NAME/$ENV_NAME $ENV_PATH
+          fi
 
       - name: Commit results
         run: |
-          BRANCH=${{ github.event.inputs.branch }}
           git config user.name "github-actions"
           git config user.email "actions@github.com"
 
@@ -311,5 +338,8 @@ jobs:
 
           # fetch remote updates > rebase local commits onto remote > push
           git fetch origin
-          git rebase origin/$BRANCH
+          git rebase origin/$BRANCH || {
+            echo "Rebase failed due to conflict"
+            exit 1
+          }
           git push origin $BRANCH
