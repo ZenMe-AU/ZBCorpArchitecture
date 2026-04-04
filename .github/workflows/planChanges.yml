@@ -113,6 +113,7 @@ jobs:
           ref: ${{ github.event.inputs.branch }}
 
       - name: Download env artifact
+        id: download_env
         if: ${{ github.event.inputs.env != '' }}
         uses: actions/download-artifact@v4
         with:
@@ -120,7 +121,7 @@ jobs:
           path: artifacts
 
       - name: Apply env
-        if: ${{ github.event.inputs.env != '' }}
+        if: steps.download_env.outcome == 'success'
         run: |
           if [ -f artifacts/$ENV_NAME ]; then
             cp artifacts/$ENV_NAME $ENV_PATH
@@ -277,6 +278,13 @@ jobs:
               [ -d "$dir" ] || continue
 
               name=$(basename "$dir")
+              if [ "$name" = "$ENV_ARTIFACT_NAME" ] ; then
+               if [ -f "$dir/$ENV_NAME" ]; then
+                  cp "$dir/$ENV_NAME" "$ENV_PATH"
+                fi
+                continue
+              fi
+
               mkdir -p corpSetup/$name
               cp -r "$dir"/* corpSetup/$name/ || true
             done
@@ -323,12 +331,6 @@ jobs:
               aws: $cloud[0].aws,
               stages: $stages[0]
             }' > $DEPLOYMENT_CHANGESET_PATH
-
-      - name: Update env file
-        run: |
-          if [ -f artifacts/$ENV_NAME ]; then
-            cp artifacts/$ENV_NAME $ENV_PATH
-          fi
 
       - name: Commit results
         run: |
