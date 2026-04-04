@@ -118,10 +118,13 @@ jobs:
         with:
           name: ${{ env.ENV_ARTIFACT_NAME }}
           path: artifacts
+
       - name: Apply env
         if: ${{ github.event.inputs.env != '' }}
         run: |
-          cp artifacts/$ENV_ARTIFACT_NAME/$ENV_NAME $ENV_PATH
+          if [ -f artifacts/$ENV_NAME ]; then
+            cp artifacts/$ENV_NAME $ENV_PATH
+          fi
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -323,8 +326,8 @@ jobs:
 
       - name: Update env file
         run: |
-          if [ -f artifacts/$ENV_ARTIFACT_NAME/$ENV_NAME ]; then
-            cp artifacts/$ENV_ARTIFACT_NAME/$ENV_NAME $ENV_PATH
+          if [ -f artifacts/$ENV_NAME ]; then
+            cp artifacts/$ENV_NAME $ENV_PATH
           fi
 
       - name: Commit results
