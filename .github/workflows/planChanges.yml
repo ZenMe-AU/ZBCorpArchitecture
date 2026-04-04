@@ -1,4 +1,5 @@
-name: update status
+name: Plan changes
+#  Compare environment designed state and list required changes
 
 on:
   workflow_dispatch:
