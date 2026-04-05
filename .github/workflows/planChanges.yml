@@ -70,19 +70,6 @@ jobs:
           # back to .env
           jq -r 'to_entries | .[] | "\(.key)=\(.value)"' merged.json > "$ENV_PATH"
 
-      # - name: Commit env
-      #   run: |
-      #     BRANCH=${{ github.event.inputs.branch }}
-      #     git config user.name "github-actions"
-      #     git config user.email "actions@github.com"
-
-      #     git fetch origin || true
-      #     git checkout $BRANCH || git checkout -b $BRANCH
-      #     git pull --rebase origin $BRANCH || true
-
-      #     git add corpSetup/corp.env
-      #     git diff --cached --quiet || git commit -m "update env"
-      #     git push origin $BRANCH
       - name: Upload merged env
         uses: actions/upload-artifact@v4
         with:
@@ -273,17 +260,33 @@ jobs:
         id: artifactList
         shell: bash
         run: |
+          set -e
           curl -s \
-            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github+json" \
             https://api.github.com/repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts \
             > /tmp/artifactList.json
+
+          ARTIFACT_LIST=$(cat /tmp/artifactList.json)
+          echo "$ARTIFACT_LIST" | jq '.'
+
+          if ! jq empty /tmp/artifactList.json 2>/dev/null; then
+            echo "Invalid JSON response"
+            exit 1
+          fi
+
+          if jq -e 'has("message") and (.message != null)' /tmp/artifactList.json > /dev/null; then
+            echo "GitHub API error:"
+            jq '.message' /tmp/artifactList.json
+            exit 1
+          fi
 
       - name: Merge status
         run: |
           mkdir -p corpSetup
           FILES=$(find artifacts -mindepth 1 -name "*-status")
           ARTIFACT_LIST=$(cat /tmp/artifactList.json)
-          echo "$ARTIFACT_LIST" | jq '.'
+
           RESULT="[]"
           for f in $FILES; do
             STAGE_NAME=$(jq -r '.name' "$f")
