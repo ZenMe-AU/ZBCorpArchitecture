@@ -85,13 +85,36 @@ runs:
         }
         EOF
 
-    - name: Upload artifacts
+    - name: Upload artifacts (stage status)
       if: always()
       uses: actions/upload-artifact@v4
       with:
         if-no-files-found: ignore
-        name: ${{ inputs.dir }}
+        name: ${{ inputs.dir }}-status
+        path: corpSetup/${{ inputs.dir }}/${{ inputs.stage_status_file }}
+
+    - name: Upload artifacts (JSON plan)
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        if-no-files-found: ignore
+        name: ${{ inputs.dir }}-planObj
+        path: corpSetup/${{ inputs.dir }}/${{ inputs.json_plan_file }}
+
+    - name: Upload artifacts (tf plan)
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        if-no-files-found: ignore
+        name: ${{ inputs.dir }}-tfplan
+        path: corpSetup/${{ inputs.dir }}/${{ inputs.binary_plan_file }}
+
+    - name: Upload artifacts (dist)
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        if-no-files-found: ignore
+        name: ${{ inputs.dir }}-dist
         path: |
-          corpSetup/${{ inputs.dir }}/${{ inputs.stage_status_file }}
-          corpSetup/${{ inputs.dir }}/${{ inputs.json_plan_file }}
-          corpSetup/${{ inputs.dir }}/${{ inputs.binary_plan_file }}
+          corpSetup/${{ inputs.dir }}/**/dist/**
+          corpSetup/${{ inputs.dir }}/**/*.zip

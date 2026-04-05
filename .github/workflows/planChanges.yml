@@ -269,39 +269,50 @@ jobs:
         with:
           path: artifacts
 
-      - name: Organize files
+      - name: Get artifact list
+        id: artifactList
+        shell: bash
         run: |
-          mkdir -p corpSetup
-
-          if [ -d artifacts ]; then
-            for dir in artifacts/*; do
-              [ -d "$dir" ] || continue
-
-              name=$(basename "$dir")
-              if [ "$name" = "$ENV_ARTIFACT_NAME" ] ; then
-               if [ -f "$dir/$ENV_NAME" ]; then
-                  cp "$dir/$ENV_NAME" "$ENV_PATH"
-                fi
-                continue
-              fi
-
-              mkdir -p corpSetup/$name
-              cp -r "$dir"/* corpSetup/$name/ || true
-            done
-          fi
+          curl -s \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            https://api.github.com/repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts \
+            > /tmp/artifactList.json
 
       - name: Merge status
         run: |
-          FILES=$(find corpSetup -mindepth 2 -name status.json)
+          mkdir -p corpSetup
+          FILES=$(find artifacts -mindepth 1 -name "*-status")
 
-          if [ -z "$FILES" ]; then
-            echo "[]" > /tmp/stages.json
-            LATEST_TS=$(date +%s)
-          else
-            jq -s '.' $FILES > /tmp/stages.json
-            LATEST_TS=$(jq '[.[] | .timestamp] | max' /tmp/stages.json)
-          fi
+          RESULT="[]"
+          for f in $FILES; do
+            STAGE=$(jq -r '.stage' "$f")
+            NAME=$(jq -r '.name' "$f")
 
+            PLAN_ID=$(jq -r --arg name "${NAME}-planObj" \
+              '.artifacts[] | select(.name==$name) | .id' /tmp/artifactList.json)
+            DIST_ID=$(jq -r --arg name "${NAME}-dist" \
+              '.artifacts[] | select(.name==$name) | .id' /tmp/artifactList.json)
+
+            [ -z "$PLAN_ID" ] && PLAN_ID=null
+            [ -z "$DIST_ID" ] && DIST_ID=null
+
+            UPDATED=$(jq \
+              --argjson plan "$PLAN_ID" \
+              --argjson dist "$DIST_ID" \
+              '. + {
+                artifacts: {
+                  planJson: $plan,
+                  dist: $dist
+                }
+              }' "$f")
+
+            RESULT=$(echo "$RESULT" | jq ". + [ $UPDATED ]")
+          done
+
+          echo "$RESULT" > /tmp/stages.json
+
+          # cloud status
+          LATEST_TS=$(date +%s)
           # generate cloud status
           AZURE_OK=true
           AWS_OK=true
@@ -331,6 +342,10 @@ jobs:
               aws: $cloud[0].aws,
               stages: $stages[0]
             }' > $DEPLOYMENT_CHANGESET_PATH
+
+          if [ -f artifacts/${{ env.ENV_ARTIFACT_NAME }}/${{ env.ENV_NAME }} ]; then
+            cp artifacts/${{ env.ENV_ARTIFACT_NAME }}/${{ env.ENV_NAME }} corpSetup/${{ env.ENV_NAME }}
+          fi
 
       - name: Commit results
         run: |
