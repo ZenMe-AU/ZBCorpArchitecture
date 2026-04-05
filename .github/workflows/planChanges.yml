@@ -284,26 +284,34 @@ jobs:
       - name: Merge status
         run: |
           mkdir -p corpSetup
-          FILES=$(find artifacts -mindepth 1 -name "*-status")
           ARTIFACT_LIST=$(cat /tmp/artifactList.json)
 
           RESULT="[]"
-          for f in $FILES; do
-            STAGE_NAME=$(jq -r '.name' "$f")
+          DIRS=$(find artifacts -mindepth 1 -name "*-status")
+          for dir in $DIRS; do
+            FILE="$dir/status.json"
+            [ -f "$FILE" ] || continue
+            STAGE_NAME=$(jq -r '.name' "$FILE")
             PLAN_ID=$(echo "$ARTIFACT_LIST" | jq -r --arg name "${STAGE_NAME}-planObj" '.artifacts[]? | select(.name==$name) | .id')
             DIST_ID=$(echo "$ARTIFACT_LIST" | jq -r --arg name "${STAGE_NAME}-dist" '.artifacts[]? | select(.name==$name) | .id')
-            [ -z "$PLAN_ID" ] && PLAN_ID=null || PLAN_ID="\"$PLAN_ID\""
-            [ -z "$DIST_ID" ] && DIST_ID=null || DIST_ID="\"$DIST_ID\""
+            PLAN_URL=$(echo "$ARTIFACT_LIST" | jq -r --arg name "${STAGE_NAME}-planObj" '.artifacts[]? | select(.name==$name) | .archive_download_url')
+            DIST_URL=$(echo "$ARTIFACT_LIST" | jq -r --arg name "${STAGE_NAME}-dist" '.artifacts[]? | select(.name==$name) | .archive_download_url')
+            [ -z "$PLAN_ID" ] && PLAN_ID=null
+            [ -z "$DIST_ID" ] && DIST_ID=null
+            [ -z "$PLAN_URL" ] && PLAN_URL=""
+            [ -z "$DIST_URL" ] && DIST_URL=""
 
             UPDATED=$(jq \
               --argjson plan "$PLAN_ID" \
               --argjson dist "$DIST_ID" \
+              --arg planUrl "$PLAN_URL" \
+              --arg distUrl "$DIST_URL" \
               '. + {
-                artifacts: {
-                  planJson: $plan,
-                  dist: $dist
-                }
-              }' "$f")
+                  planJsonId: $plan,
+                  distId: $dist,
+                  planJsonUrl: $planUrl,
+                  distUrl: $distUrl
+              }' "$FILE")
 
             RESULT=$(echo "$RESULT" | jq ". + [ $UPDATED ]")
           done
