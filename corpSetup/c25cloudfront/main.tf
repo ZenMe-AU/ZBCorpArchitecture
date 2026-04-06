@@ -3,6 +3,18 @@
 #   login_uri = "login.${var.dns_name}"
 # }
 
+locals {
+  login_record_name         = "login-${var.cloudfront_alias_suffix}"
+  unavailable_record_name   = "unavailable-${var.cloudfront_alias_suffix}"
+  prod_record_name          = "prod-${var.cloudfront_alias_suffix}"
+  prod_wildcard_record_name = "*.prod-${var.cloudfront_alias_suffix}"
+
+  login_fqdn         = "${local.login_record_name}.${var.dns_name}"
+  unavailable_fqdn   = "${local.unavailable_record_name}.${var.dns_name}"
+  prod_fqdn          = "${local.prod_record_name}.${var.dns_name}"
+  prod_wildcard_fqdn = "${local.prod_wildcard_record_name}.${var.dns_name}"
+}
+
 resource "azuread_application" "msal_spa" {
   display_name = var.app_registration_name
 
@@ -10,7 +22,7 @@ resource "azuread_application" "msal_spa" {
 
   single_page_application {
     redirect_uris = [
-      "https://login.${var.dns_name}/",
+      "https://${local.login_fqdn}/",
     ]
   }
 
@@ -30,7 +42,7 @@ resource "local_file" "config_js" {
   content = templatefile("${var.bucket_spa_source_folder}/template/config.js.tpl", {
     tenant_id = var.tenant_id
     client_id = azuread_application.msal_spa.client_id
-    redirect_uri = "https://login.${var.dns_name}/"
+    redirect_uri = "https://${local.login_fqdn}/"
     domain_name = var.dns_name
   })
 }
@@ -41,14 +53,14 @@ resource "local_file" "guard_config" {
   content = templatefile("${var.lambda_edge_auth_guard_source_folder}/template/config.js.tpl", {
     client_id = azuread_application.msal_spa.client_id
     tenant_id = var.tenant_id
-    auth_domain = "https://login.${var.dns_name}/"
+    auth_domain = "https://${local.login_fqdn}/"
   })
 }
 resource "local_file" "guard_html" {
   filename = "${var.lambda_edge_auth_guard_source_folder}/dist/login.html"
 
   content = templatefile("${var.lambda_edge_auth_guard_source_folder}/template/login.html.tpl", {
-    auth_domain = "https://login.${var.dns_name}/"
+    auth_domain = "https://${local.login_fqdn}/"
   })
 }
 
@@ -254,11 +266,11 @@ resource "aws_acm_certificate_validation" "cf" {
 }
 
 resource "aws_acm_certificate" "cf_prod" {
-  domain_name       = "prod.${var.dns_name}"
+  domain_name       = local.prod_fqdn
   validation_method = "DNS"
 
   subject_alternative_names = [
-    "*.prod.${var.dns_name}"
+     local.prod_wildcard_fqdn
   ]
    lifecycle {
     create_before_destroy = true
@@ -371,7 +383,7 @@ resource "aws_cloudfront_distribution" "website" {
   }
 
   aliases = [
-    "unavailable.${var.dns_name}"
+    local.unavailable_fqdn
   ]
 
   viewer_certificate {
@@ -451,7 +463,7 @@ resource "aws_cloudfront_distribution" "website" {
 # }
 
 resource "azurerm_dns_cname_record" "website_cloudfront" {
-  name                = "unavailable"
+  name                = local.unavailable_record_name
   zone_name           = var.dns_name
   resource_group_name = var.resource_group_name
   ttl                 = 3600
@@ -521,7 +533,7 @@ resource "aws_cloudfront_distribution" "spa" {
   }
 
   aliases = [
-    "login.${var.dns_name}"
+    local.login_fqdn
   ]
 
   viewer_certificate {
@@ -574,7 +586,7 @@ resource "aws_cloudfront_distribution" "spa" {
 }
 
 resource "azurerm_dns_cname_record" "spa_cloudfront" {
-  name                = "login"
+  name                = local.login_record_name
   zone_name           = var.dns_name
   resource_group_name = var.resource_group_name
   ttl                 = 3600
@@ -648,8 +660,8 @@ resource "aws_cloudfront_distribution" "prod" {
   ]
 
   aliases = [
-    "prod.${var.dns_name}",
-    "*.prod.${var.dns_name}"
+    local.prod_fqdn,
+    local.prod_wildcard_fqdn
   ]
 
   viewer_certificate {
@@ -740,7 +752,7 @@ resource "aws_s3_bucket_policy" "static_website" {
 # }
 
 resource "azurerm_dns_cname_record" "prod_cloudfront" {
-  for_each = toset(["prod", "*.prod"])
+  for_each = toset([local.prod_record_name, local.prod_wildcard_record_name])
 
   name                = each.key
   zone_name           = var.dns_name

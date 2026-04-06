@@ -1,7 +1,5 @@
 1. Start with following instructions in "Creating org Microsoft account.docx"
 
-1. Then follow the instructions in "How to create a Free AWS account.docx"
-
 1. Store the passwords in a temporary file?
 
 1. Execute c01
@@ -51,10 +49,17 @@
     ```
     1. after the deployment finishes go to the dns zone created in azure which should have the same name as the dns in corp.env
     find the server details and give them to your company's dns provider to be stored
-    1. once the dns server details have been stored on the provider's end you are finished with executing c05
+    1. the provider should receive something like this:
+        Name server 1: ns01.example.com
+        Name server 2: ns01.example.net
+        Name server 3: ns01.example.org
+        Name server 4: ns01.example.info
+    (make sure to give the service provider your dns domain located inside of corp.env)
+    1. once the domain name server details have been stored on the provider's end you are finished with executing c05
 
     
 1. Execute c20
+    1. Follow the instructions in "How to create a Free AWS account.docx"
     1. log into AWS account by typing the following in your terminal: 
         ``` ps
         aws login

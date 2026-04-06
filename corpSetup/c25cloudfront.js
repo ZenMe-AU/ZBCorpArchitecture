@@ -107,11 +107,12 @@ function main(corpEnvFile) {
 
   try {
     // Find the working directory that matches the stage
-    const workingDirName = resolve(__dirname, "c25cloudfront");
-    if (!workingDirName) {
+    const workingDirName = "c25cloudfront";
+    const workingDirPath = resolve(__dirname, workingDirName);
+    if (!workingDirPath) {
       throw new Error(`c25cloudfront directory not found in ${__dirname}`);
     }
-    console.log("workingDir:", workingDirName);
+    console.log("workingDir:", workingDirPath);
     if (!existsSync(corpEnvFile)) {
       throw new Error("corp.env file not found.");
     }
@@ -122,8 +123,8 @@ function main(corpEnvFile) {
     }
     let tfStateList = [];
     try {
-      console.log("Loading existing terraform state in :", workingDirName);
-      tfStateList = execSync("terraform state list", { cwd: resolve(__dirname, workingDirName), encoding: "utf8", stdio: "pipe" })
+      console.log("Loading existing terraform state in :", workingDirPath);
+      tfStateList = execSync("terraform state list", { cwd: workingDirPath, encoding: "utf8", stdio: "pipe" })
         .split("\n")
         .map((s) => s.trim())
         .filter(Boolean);
@@ -134,6 +135,7 @@ function main(corpEnvFile) {
         if (!subscriptionId) {
           throw new Error("SUBSCRIPTION_ID is not set in corp.env.");
         }
+        const bucketNameSuffix = subscriptionId.replace(/-/g, "").slice(0, 8).toLowerCase();
         const dnsName = env.get("DNS");
         if (!dnsName) {
           throw new Error("DNS is not set in corp.env.");
@@ -154,19 +156,20 @@ function main(corpEnvFile) {
         setTfVar("tenant_id", tenantId);
         setTfVar("subscription_id", subscriptionId);
         setTfVar("dns_name", dnsName);
+        setTfVar("cloudfront_alias_suffix", bucketNameSuffix);
         setTfVar("resource_group_name", resourceGroupName);
-        const bucketStaticWebsiteSourceFolder = resolve(__dirname, workingDirName, "source", "webpage");
-        const bucketSpaSourceFolder = resolve(__dirname, workingDirName, "source", "loginApp");
-        const lambdaEdgeAuthGuardSourceFolder = resolve(__dirname, workingDirName, "source", "authGuardLambdaEdge");
-        const lambdaEdgeRewriteHeaderSourceFolder = resolve(__dirname, workingDirName, "source", "rewriteHeaderLambdaEdge");
+        const bucketStaticWebsiteSourceFolder = resolve(workingDirPath, "source", "webpage");
+        const bucketSpaSourceFolder = resolve(workingDirPath, "source", "loginApp");
+        const lambdaEdgeAuthGuardSourceFolder = resolve(workingDirPath, "source", "authGuardLambdaEdge");
+        const lambdaEdgeRewriteHeaderSourceFolder = resolve(workingDirPath, "source", "rewriteHeaderLambdaEdge");
 
         setTfVar("app_registration_name", getAppRegistrationName(corpName, "login"));
         setTfVar("bucket_static_website_source_folder", bucketStaticWebsiteSourceFolder);
         setTfVar("bucket_spa_source_folder", bucketSpaSourceFolder);
         setTfVar("lambda_edge_auth_guard_source_folder", lambdaEdgeAuthGuardSourceFolder);
         setTfVar("lambda_edge_rewrite_header_source_folder", lambdaEdgeRewriteHeaderSourceFolder);
-        setTfVar("bucket_static_website_name", getBucketName(corpName, "web"));
-        setTfVar("bucket_spa_name", getBucketName(corpName, "login"));
+        setTfVar("bucket_static_website_name", getBucketName(corpName, `web-${bucketNameSuffix}`));
+        setTfVar("bucket_spa_name", getBucketName(corpName, `login-${bucketNameSuffix}`));
         setTfVar("lambda_edge_auth_guard_name", getLambdaFunctionName(corpName, "guard"));
         setTfVar("lambda_edge_auth_guard_role", getLambdaFunctionRoleName(corpName, "guard"));
         setTfVar("lambda_edge_rewrite_header_role", getLambdaFunctionRoleName(corpName, "rewriteHeader"));
@@ -183,14 +186,15 @@ function main(corpEnvFile) {
             -backend-config="storage_account_name=${storageAccountName}" \
             -backend-config="container_name=terraformstate" \
             -backend-config="key=${workingDirName}.tfstate"`,
-          { stdio: "pipe", shell: true, cwd: resolve(__dirname, workingDirName) }
+          { stdio: "pipe", shell: true, cwd: workingDirPath }
         );
 
         // install dependencies and build for SPA
-        execSync(`pnpm install`, { stdio: "pipe", shell: true });
-        execSync(`pnpm run build`, { stdio: "pipe", shell: true, cwd: bucketSpaSourceFolder });
-        // install dependencies for lambda@edge
-        execSync(`pnpm run build`, { stdio: "pipe", shell: true, cwd: lambdaEdgeAuthGuardSourceFolder });
+        execSync(`pnpm install --ignore-workspace`, { stdio: "inherit", shell: true, cwd: bucketSpaSourceFolder });
+        execSync(`pnpm run build`, { stdio: "inherit", shell: true, cwd: bucketSpaSourceFolder });
+        // install dependencies and build for lambda@edge
+        execSync(`pnpm install --ignore-workspace`, { stdio: "inherit", shell: true, cwd: lambdaEdgeAuthGuardSourceFolder });
+        execSync(`pnpm run build`, { stdio: "inherit", shell: true, cwd: lambdaEdgeAuthGuardSourceFolder });
 
         // if (!tfStateList.includes("aws_cloudwatch_log_group.lambda_edge_auth_guard_logs ")) {
         //   execSync(`terraform import aws_cloudwatch_log_group.lambda_edge_auth_guard_logs /aws/lambda/${lambdaEdgeAuthGuardName}`, {
@@ -206,12 +210,12 @@ function main(corpEnvFile) {
     execSync(`terraform apply ${autoApprove ? " -auto-approve" : ""}`, {
       stdio: "inherit",
       shell: true,
-      cwd: resolve(__dirname, workingDirName),
+      cwd: workingDirPath,
     });
     if (!env.get("SUBSCRIPTION_ID")) {
       const newSubscriptionId = execSync(`terraform output -raw new_subscription_id`, {
         encoding: "utf-8",
-        cwd: resolve(__dirname, workingDirName),
+        cwd: workingDirPath,
       }).trim();
       env.add("SUBSCRIPTION_ID", newSubscriptionId);
       env.saveToFile();

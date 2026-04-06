@@ -20,6 +20,7 @@ terraform {
 
 provider "aws" {
   region = var.provider_region
+  profile = "default"
 }
 
 provider "azurerm" {

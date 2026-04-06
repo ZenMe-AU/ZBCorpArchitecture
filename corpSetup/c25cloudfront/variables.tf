@@ -130,6 +130,11 @@ variable "origin_request_policy_name" {
   # default     = "asleepswordtail-origin-request-policy"
 }
 
+variable "cloudfront_alias_suffix" {
+  description = "Suffix appended to c25 CloudFront aliases to keep them globally unique"
+  type        = string
+}
+
 variable "tenant_id" {
   description = "The Azure AD Tenant ID"
   type        = string
