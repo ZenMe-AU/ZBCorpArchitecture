@@ -86,12 +86,12 @@
         Please log in to continue.
       </p>
 
-      <a class="btn" id="login-btn"> Go to Login </a>
+      <a class="btn" id="login-btn" href="${auth_domain}" target="_blank"> Go to Login </a>
 
-      <div class="fallback">
+      <!-- <div class="fallback">
         If the button does not work, copy and open this URL:
         <code>${auth_domain}</code>
-      </div>
+      </div> -->
     </div>
 
     <script>
@@ -107,14 +107,12 @@
           }
 
           function handler(event) {
-            console.log("Received message from popup:", event);
             if (event.origin !== AUTH_ORIGIN) return;
 
             if (event.data?.authStatus === "SUCCESS") {
               window.removeEventListener("message", handler);
               popup.close();
               showManualLoginCard(false);
-              console.log(getCookie("idToken"));
               if (getCookie("idToken")) {
                 window.location.reload();
               }
@@ -131,7 +129,10 @@
           window.addEventListener("message", handler);
         }
 
-        document.getElementById("login-btn").addEventListener("click", openLoginPopup);
+        document.getElementById("login-btn").addEventListener("click", function (e) {
+          e.preventDefault();
+          openLoginPopup();
+        });
 
         function showManualLoginCard(isShowCard) {
           const processing = document.getElementById("processing-card");
@@ -145,42 +146,6 @@
           }
         }
 
-        function silentRefreshViaIframe() {
-          const TIMEOUT_MS = 5000;
-          return new Promise(function (resolve, reject) {
-            const iframe = document.createElement("iframe");
-            iframe.src = AUTH_URL;
-            iframe.style.display = "none";
-
-            function cleanup() {
-              window.removeEventListener("message", handler);
-              if (document.body.contains(iframe)) {
-                document.body.removeChild(iframe);
-              }
-            }
-
-            function handler(event) {
-              if (event.origin !== AUTH_ORIGIN) return;
-
-              if (event.data?.authStatus === "SUCCESS") {
-                cleanup();
-                resolve();
-              } else if (event.data?.authStatus === "FAILED") {
-                cleanup();
-                reject();
-              }
-            }
-
-            window.addEventListener("message", handler);
-            document.body.appendChild(iframe);
-
-            setTimeout(function () {
-              cleanup();
-              reject();
-            }, TIMEOUT_MS);
-          });
-        }
-
         function getCookie(name) {
           const value = "; " + document.cookie;
           const parts = value.split("; " + name + "=");
@@ -190,6 +155,11 @@
         if (getCookie("idToken")) {
           showManualLoginCard(false);
         }
+        window.addEventListener("load", function () {
+          if (!getCookie("idToken")) {
+            openLoginPopup();
+          }
+        });
       })();
     </script>
   </body>

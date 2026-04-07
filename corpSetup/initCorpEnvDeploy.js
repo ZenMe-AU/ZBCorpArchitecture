@@ -120,6 +120,7 @@ function main() {
   const args = minimist(process.argv.slice(2));
   const stage = args.stage;
   const stageRegex = /^c\d{2}$/;
+  const planOnly = process.argv.includes("--planOnly");
 
   try {
     // Validate stage argument
@@ -182,30 +183,42 @@ function main() {
       }
     }
 
-    console.log("Starting Terraform initialization.");
-    // Run terraform
-    execSync(`terraform apply ${autoApprove ? " -auto-approve" : ""}`, {
-      stdio: "inherit",
-      shell: true,
-      cwd: resolve(__dirname, workingDirName),
-    });
-
-    // // Post-apply SAML configuration for c20awsentrasso
-    // if (workingDirName === "c20awsentrasso") {
-    //   c20_post_apply_saml_save(
-    //     resolve(__dirname, workingDirName),
-    //     "https://signin.aws.amazon.com/saml"
-    //   );
-    //   manual_message();
-    // }
-
-    if (!env.get("SUBSCRIPTION_ID")) {
-      const newSubscriptionId = execSync(`terraform output -raw new_subscription_id`, {
-        encoding: "utf-8",
+    if (planOnly) {
+      console.log("Planning Terraform changes to tfplan");
+      execSync(`terraform plan -out=tfplan`, {
+        stdio: "inherit",
+        shell: true,
         cwd: resolve(__dirname, workingDirName),
-      }).trim();
-      env.add("SUBSCRIPTION_ID", newSubscriptionId);
-      env.saveToFile();
+      });
+    } else {
+      console.log("Applying Terraform changes.");
+      // Run terraform
+      execSync(`terraform apply ${autoApprove ? " -auto-approve" : ""}`, {
+        stdio: "inherit",
+        shell: true,
+        cwd: resolve(__dirname, workingDirName),
+      });
+
+      // // Post-apply SAML configuration for c20awsentrasso
+      // if (workingDirName === "c20awsentrasso") {
+      //   manual_message();
+      // }
+
+      if (!env.get("SUBSCRIPTION_ID")) {
+        try {
+          const newSubscriptionId = execSync(`terraform output -raw new_subscription_id`, {
+            encoding: "utf-8",
+            cwd: resolve(__dirname, workingDirName),
+          }).trim();
+
+          if (!newSubscriptionId) throw new Error("new_subscription_id is empty");
+
+          env.add("SUBSCRIPTION_ID", newSubscriptionId);
+          env.saveToFile();
+        } catch (err) {
+          console.warn("Failed to get new_subscription_id from Terraform:", err.message);
+        }
+      }
     }
   } catch (error) {
     console.error(error.stack);

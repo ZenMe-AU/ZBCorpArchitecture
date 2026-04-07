@@ -277,21 +277,21 @@ function main(corpEnvFile) {
             }
           }
         }
-    console.log("Starting Terraform initialization.");
-    // Run terraform
-    execSync(`terraform apply ${autoApprove ? " -auto-approve" : ""}`, {
-      stdio: "inherit",
-      shell: true,
-      cwd: resolve(__dirname, workingDirName),
-    });
-    if (!env.get("SUBSCRIPTION_ID")) {
-      const newSubscriptionId = execSync(`terraform output -raw new_subscription_id`, {
-        encoding: "utf-8",
-        cwd: resolve(__dirname, workingDirName),
-      }).trim();
-      env.add("SUBSCRIPTION_ID", newSubscriptionId);
-      env.saveToFile();
-    }
+    // console.log("Starting Terraform initialization.");
+    // // Run terraform
+    // execSync(`terraform apply ${autoApprove ? " -auto-approve" : ""}`, {
+    //   stdio: "inherit",
+    //   shell: true,
+    //   cwd: resolve(__dirname, workingDirName),
+    // });
+    // if (!env.get("SUBSCRIPTION_ID")) {
+    //   const newSubscriptionId = execSync(`terraform output -raw new_subscription_id`, {
+    //     encoding: "utf-8",
+    //     cwd: resolve(__dirname, workingDirName),
+    //   }).trim();
+    //   env.add("SUBSCRIPTION_ID", newSubscriptionId);
+    //   env.saveToFile();
+    // }
   } catch (error) {
     console.error(error.stack);
     process.exit(1);
