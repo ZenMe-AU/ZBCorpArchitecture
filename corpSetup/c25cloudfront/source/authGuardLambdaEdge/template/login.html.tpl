@@ -68,6 +68,12 @@
         font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
         color: #333;
       }
+
+      .errorMsg {
+        margin-top: 12px;
+        color: #e53e3e;
+        font-size: 13px;
+      }
     </style>
   </head>
   <body>
@@ -75,18 +81,17 @@
     <div id="processing-card" class="card" style="display: none">
       <h1>Refreshing session</h1>
       <p>If nothing happens, refresh manually.</p>
+
       <button class="btn" onclick="window.location.reload()">refresh</button>
     </div>
 
     <!-- Original login card (shown initially) -->
     <div id="login-card" class="card">
       <h1>Login Required</h1>
-      <p>
-        You are not logged in or your session has expired.<br />
-        Please log in to continue.
-      </p>
+      <p>You are not logged in or your session has expired.</p>
 
-      <a class="btn" id="login-btn" href="${auth_domain}" target="_blank"> Go to Login </a>
+      <a class="btn" id="login-btn" href="${auth_domain}" target="_blank"> Click here to open the Login popup </a>
+      <p id="errorMsg" class="errorMsg" style="display: none"></p>
 
       <!-- <div class="fallback">
         If the button does not work, copy and open this URL:
@@ -99,39 +104,50 @@
         const AUTH_URL = "${auth_domain}";
         const AUTH_ORIGIN = new URL(AUTH_URL).origin;
         function openLoginPopup() {
-          const popup = window.open(AUTH_URL, "loginPopup", "width=500,height=650,resizable=yes");
-
-          if (!popup) {
-            alert("Popup blocked. Please allow popups for this site.");
-            return;
-          }
-
-          function handler(event) {
-            if (event.origin !== AUTH_ORIGIN) return;
-
-            if (event.data?.authStatus === "SUCCESS") {
-              window.removeEventListener("message", handler);
-              popup.close();
-              showManualLoginCard(false);
-              if (getCookie("idToken")) {
-                window.location.reload();
+          try {
+            const popup = window.open(AUTH_URL, "loginPopup", "width=500,height=650,resizable=yes");
+            if (!popup) {
+              return null;
+            }
+            function handler(event) {
+              if (event.origin !== AUTH_ORIGIN) return;
+              if (event.data?.authStatus === "SUCCESS") {
+                window.removeEventListener("message", handler);
+                popup.close();
+                if (getCookie("idToken")) {
+                  showManualLoginCard(false);
+                  window.location.reload();
+                }
+              }
+              if (event.data?.authStatus === "FAILED") {
+                window.removeEventListener("message", handler);
+                popup.close();
+                console.error("Login failed");
+                document.getElementById("errorMsg").innerHTML =
+                  "The login failed. Please reload this page and try again. If the issue persists, please contact support.";
+                document.getElementById("errorMsg").style.display = "block";
+                document.getElementById("login-btn").style.display = "none";
               }
             }
-
-            if (event.data?.authStatus === "FAILED") {
-              window.removeEventListener("message", handler);
-              popup.close();
-              console.error("Login failed");
-              alert("Login failed. Please try again.");
-            }
+            window.addEventListener("message", handler);
+            return popup;
+          } catch (err) {
+            return null;
           }
-
-          window.addEventListener("message", handler);
         }
 
         document.getElementById("login-btn").addEventListener("click", function (e) {
           e.preventDefault();
-          openLoginPopup();
+          const popup = openLoginPopup();
+          if (!popup) {
+            // If popup failed to open (e.g., blocked), fallback to redirect
+            document.getElementById("errorMsg").innerHTML =
+              "The login popup failed, please click <a href='" +
+              AUTH_URL +
+              "' target='_blank'>here to open a new window</a> and refresh this page after you have logged in.";
+            document.getElementById("errorMsg").style.display = "block";
+            document.getElementById("login-btn").style.display = "none";
+          }
         });
 
         function showManualLoginCard(isShowCard) {

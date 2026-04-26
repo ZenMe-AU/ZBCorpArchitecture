@@ -21,38 +21,55 @@ function getSigningKey(kid) {
     });
   });
 }
-
+const loginPageHtml = fs.readFileSync("login.html", "utf-8");
 function authFailedResponse({ request, origin, returnTo }) {
   const dest = request.headers["sec-fetch-dest"]?.[0]?.value;
   const mode = request.headers["sec-fetch-mode"]?.[0]?.value;
+  const clearCookies = [
+    {
+      key: "Set-Cookie",
+      value: "idToken=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax; Secure",
+    },
+  ];
   // Check if it's a navigation request for document, if so, return an HTML response with a link to login
   if (dest === "document" && mode === "navigate") {
-    const html = fs.readFileSync("login.html", "utf-8");
     return {
       status: "200",
       statusDescription: "OK",
       headers: {
+        "cache-control": [{ key: "Cache-Control", value: "no-store" }],
         "content-type": [{ key: "Content-Type", value: "text/html; charset=utf-8" }],
+        "set-cookie": clearCookies,
       },
-      body: html,
+      body: loginPageHtml,
     };
   }
+  const accept = request.headers.accept?.[0]?.value || "";
+  const isJsonRequest = accept.includes("application/json");
+  const { contextType, body } = isJsonRequest
+    ? {
+        contextType: [{ key: "Content-Type", value: "application/json" }],
+        body: JSON.stringify({
+          code: "FORBIDDEN",
+          message: "Invalid or expired token",
+          loginUrl: AUTH_DOMAIN,
+        }),
+      }
+    : { contextType: [{ key: "Content-Type", value: "text/plain" }], body: "Forbidden" };
   return {
     status: "403",
     statusDescription: "Forbidden",
     headers: {
-      "content-type": [{ key: "Content-Type", value: "application/json" }],
+      "cache-control": [{ key: "Cache-Control", value: "no-store" }],
+      "content-type": contextType,
+      "set-cookie": clearCookies,
       ...(origin && {
         "access-control-allow-origin": [{ key: "Access-Control-Allow-Origin", value: origin }],
         "access-control-allow-credentials": [{ key: "Access-Control-Allow-Credentials", value: "true" }],
         vary: [{ key: "Vary", value: "Origin" }],
       }),
     },
-    body: JSON.stringify({
-      code: "FORBIDDEN",
-      message: "Invalid or expired token",
-      loginUrl: AUTH_DOMAIN,
-    }),
+    body,
   };
 }
 
