@@ -15,6 +15,7 @@ import dotenv from "dotenv";
 import { main as c01function } from "./c01subscription.js";
 import { main as c02function } from "./c02globalGroups.js";
 import { main as c05function } from "./c05rootrg.js";
+import { main as c07function } from "./c07userAccounts.js";
 import { main as c20function, manual_message, c20_post_apply_saml_save } from "./c20awsentrasso.js";
 import { main as c21function } from "./c21awsentrassoP2.js";
 import { main as c25function } from "./c25cloudfront.js";
@@ -169,6 +170,10 @@ function main() {
         c05function(corpEnvFile);
         break;
       }
+      case "c07userAccounts": {
+        c07function(corpEnvFile);
+        break;
+      }
       case "c20awsentrasso": {
         c20function(corpEnvFile);
         break;
@@ -181,6 +186,11 @@ function main() {
         c25function(corpEnvFile);
         break;
       }
+    }
+
+    // c07 handles its own terraform lifecycle (init/plan/apply/export).
+    if (workingDirName === "c07userAccounts") {
+      return;
     }
 
     if (planOnly) {
