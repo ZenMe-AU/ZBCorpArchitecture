@@ -21,7 +21,7 @@ resource "azurerm_consumption_budget_subscription" "payg_budget" {
 
     notification {
         enabled        = true
-        threshold      = 300
+        threshold      = 200
         operator       = "EqualTo"
         contact_emails = var.contact_emails
     }
