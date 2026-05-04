@@ -12,7 +12,7 @@ output "new_subscription_id" {
 # Add a $100 monthly limit to the subscription
 resource "azurerm_consumption_budget_subscription" "payg_budget" {
     name             = "monthly-budget"
-    amount           = 100
+    amount           = 200
     subscription_id  = "/subscriptions/${azurerm_subscription.payg.subscription_id}"
 
     time_period {
