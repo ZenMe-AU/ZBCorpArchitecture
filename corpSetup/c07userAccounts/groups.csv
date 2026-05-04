@@ -1,6 +1,7 @@
 GroupName,Description,MemberOfGroups
-LeadDeveloper2,"Developers with access to deploy environments","ResourceGroupDeployer2"
-DbAdmin-Prod2,"",""
-DbAdmin-Test2,"",""
-DbAdmin-Dev2,"",""
-ResourceGroupDeployer2,"","DbAdmin-Prod2,DbAdmin-Test2,DbAdmin-Dev2"
+LeadDeveloper2,Developers with access to deploy environments,ResourceGroupDeployer2
+DbAdmin-Prod2,,
+DbAdmin-Test2,,
+DbAdmin-Dev2,,
+ResourceGroupDeployer2,,"DbAdmin-Prod2,DbAdmin-Test2,DbAdmin-Dev2"
+Developer,Developers with general access,

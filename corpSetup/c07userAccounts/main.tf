@@ -1,9 +1,10 @@
 // TODOs for this module:
 // - [x] Add groups from groups.csv
 // - [x] Load users.csv
-// - [x] Create users
+// - [x] Create users (upn is unique identifier)
 // - [x] Add users to groups
-// - [ ] Add users to eligible roles (requires Graph / elevated privileges)
+// - [x] Add users to eligible roles (requires Graph / elevated privileges)
+// - [x - SamAccountName] add other properties to users (e.g. SamAccountName, PrimaryEmail, OtherEmail) from users.csv
 // - [ ] Enable Passkey (FIDO2) for users (requires Graph / admin action)
 // - [ ] Create 1-day temporary access passes and output to a file (external script)
 // - [ ] Output a file with every user's temporary access pass and email address
@@ -26,6 +27,12 @@ variable "domain" {
   default     = "ryworkzegmail.onmicrosoft.com"
 }
 
+variable "custom_domain" {
+  type        = string
+  description = "Custom domain to add to the tenant and verify"
+  default     = "z3nm3.com.au"
+}
+
 // Check for existing domains
 data "msgraph_resource_action" "existing_domains" {
   api_version  = "v1.0"
@@ -43,22 +50,22 @@ data "msgraph_resource_action" "custom_domain" {
   method       = "POST"
   resource_url = "domains"
 
-  body = {"id": "z3nm3.com.au"}
+  body = { id = var.custom_domain }
   
-  count = !contains([for d in data.msgraph_resource_action.existing_domains.output.domains : d.id], "z3nm3.com.au") ? 1 : 0
+  count = !contains([for d in data.msgraph_resource_action.existing_domains.output.domains : d.id], var.custom_domain) ? 1 : 0
 }
 
 data "msgraph_resource_action" "custom_domain_verify" {
   api_version  = "v1.0"
   method       = "GET"
-  resource_url = "domains/z3nm3.com.au/verificationDnsRecords"
+  resource_url = "domains/${var.custom_domain}/verificationDnsRecords"
 
   response_export_values = {
     records = "value"
   }
   
   # Only verify if domain was just created
-  count = !contains([for d in data.msgraph_resource_action.existing_domains.output.domains : d.id], "z3nm3.com.au") ? 1 : 0
+  count = !contains([for d in data.msgraph_resource_action.existing_domains.output.domains : d.id], var.custom_domain) ? 1 : 0
 
   # Ensure the domain is actually created before trying to get verification records
   depends_on = [data.msgraph_resource_action.custom_domain]
@@ -69,7 +76,7 @@ locals {
   existing_ids = [for d in data.msgraph_resource_action.existing_domains.output.domains : d.id]
   
   # Determine if we need to create the record (Empty map if exists, 1-item map if missing)
-  create_verify_record = contains(local.existing_ids, "z3nm3.com.au") ? {} : { "create" = true }
+  create_verify_record = contains(local.existing_ids, var.custom_domain) ? {} : { "create" = true }
 }
 
 resource "azurerm_dns_txt_record" "verify" {
@@ -92,12 +99,12 @@ resource "azurerm_dns_txt_record" "verify" {
   }
 }
 
-data "msgraph_resource_action" "verify_custom_domain" {
-  count = !contains([for d in data.msgraph_resource_action.existing_domains.output.domains : d.id], "z3nm3.com.au") ? 1 : 0
+resource "msgraph_resource_action" "verify_custom_domain" {
+  count = !contains([for d in data.msgraph_resource_action.existing_domains.output.domains : d.id], var.custom_domain) ? 1 : 0
 
   api_version  = "v1.0"
   method       = "POST"
-  resource_url = "domains/z3nm3.com.au/verify"
+  resource_url = "domains/${var.custom_domain}/verify"
 
   # DNS verification can be eventually consistent; retry until record is visible.
   retry = {
@@ -109,10 +116,25 @@ data "msgraph_resource_action" "verify_custom_domain" {
   }
 
   timeouts {
-    read = "2m"
+    create = "2m"
   }
 
   depends_on = [azurerm_dns_txt_record.verify]
+}
+
+resource "msgraph_resource_action" "make_custom_domain_primary" {
+  # Only run when we created the domain
+  count = !contains([for d in data.msgraph_resource_action.existing_domains.output.domains : d.id], var.custom_domain) ? 1 : 0
+
+  api_version  = "v1.0"
+  method       = "PATCH"
+  resource_url = "domains/${var.custom_domain}"
+
+  body = {
+    isDefault = true
+  }
+
+  depends_on = [msgraph_resource_action.verify_custom_domain]
 }
 
 // Add groups from groups.csv, Load users.csv, Create users, Add users to groups, Add groups to groups
@@ -123,20 +145,20 @@ locals {
   # loads users.csv -> used to create azuread_user
   users_csv  = csvdecode(file("${path.module}/users.csv"))
 
-  # map users by username (name.surname)
+  # map users by UPN from CSV
   users_map = {
-    for u in local.users_csv : lower("${u.Name}.${u.LastName}") => u
+    for u in local.users_csv : lower(u.Upn) => u
   }
 
   # target UPNs from users.csv used to query existing Entra users
-  target_upns = [for k in keys(local.users_map) : lower("${k}@${var.domain}")]
+  target_upns = [for u in local.users_csv : lower(u.Upn)]
 
   # flattened list of user -> group mappings for group membership resource
   user_memberships = flatten([
-    for u_key, u in local.users_map : [
-      for g in split(",", replace(u.MemberOfGroups, " ", "")) : {
-        user_key = u_key
-        group    = g
+    for upn, u in local.users_map : [
+      for g in [for group in split(",", u.MemberOfGroups) : trimspace(group) if trimspace(group) != ""] : {
+        upn   = upn
+        group = g
       }
     ]
   ])
@@ -186,28 +208,28 @@ locals {
     for u in data.azuread_users.existing[0].users : lower(u.user_principal_name)
   ] : []
 
-  # Existing users keyed by username part of UPN (name.surname)
+  # Existing users keyed by UPN
   existing_user_object_ids = length(local.target_upns) > 0 ? {
-    for u in data.azuread_users.existing[0].users : lower(split("@", u.user_principal_name)[0]) => u.object_id
+    for u in data.azuread_users.existing[0].users : lower(u.user_principal_name) => u.object_id
   } : {}
 
   # Only create users that are not already present in Entra ID.
   users_to_create = {
-    for k, v in local.users_map : k => v
-    if !contains(local.existing_upns, lower("${k}@${var.domain}"))
+    for upn, v in local.users_map : upn => v
+    if !contains(local.existing_upns, upn)
   }
 
   # Resolve membership IDs from all known users (existing + managed/created).
   all_user_object_ids = merge(
     local.existing_user_object_ids,
-    { for k, u in azuread_user.users : k => u.object_id }
+    { for upn, u in azuread_user.users : upn => u.object_id }
   )
 
   # Flatten users.csv into user -> eligible role pairs.
   eligible_role_assignments = flatten([
-    for u_key, u in local.users_map : [
+    for upn, u in local.users_map : [
       for role_name in [for r in split(",", try(u.EligibleRoles, "")) : trimspace(r) if trimspace(r) != ""] : {
-        user_key      = u_key
+        upn           = upn
         display_name  = trimspace(u.DisplayName)
         role_name     = role_name
       }
@@ -229,21 +251,29 @@ locals {
 resource "azuread_user" "users" {
   for_each = local.users_to_create
 
-  user_principal_name = "${each.key}@${var.domain}"
-  display_name        = each.value.DisplayName
-  mail_nickname       = replace(lower("${each.value.Name}${each.value.LastName}"), " ", "")
-  account_enabled     = true
+  user_principal_name     = each.value.Upn
+  display_name            = each.value.DisplayName
+  given_name              = each.value.Name
+  surname                 = each.value.LastName
+  country                 = each.value.Location
+  # sam_account_name        = each.value.SamAccountName
+  mail_nickname           = replace(lower("${each.value.Name}${each.value.LastName}"), " ", "")
+  account_enabled         = true
+  mail                    = each.value.PrimaryEmail
+  other_mails             = [for email in [for e in split(",", each.value.OtherEmail) : trimspace(e) if trimspace(e) != ""] : email]
 
-  password = random_password.user_passwords[each.key].result
-  force_password_change = false #TODO: change to true after demonstration
+  password                = random_password.user_passwords[each.key].result
+  force_password_change   = false #TODO: change to true after demonstration
+
+  depends_on = [msgraph_resource_action.make_custom_domain_primary]
 }
 
 // Add users to groups (azuread_group_member resources)
 resource "azuread_group_member" "membership" {
-  for_each = { for m in local.user_memberships : "${m.user_key}__${m.group}" => m }
+  for_each = { for m in local.user_memberships : "${m.upn}__${m.group}" => m }
 
   group_object_id  = azuread_group.security_groups[each.value.group].object_id
-  member_object_id = local.all_user_object_ids[each.value.user_key]
+  member_object_id = local.all_user_object_ids[each.value.upn]
 }
 
 // Add groups to groups (child group memberships in parent groups)
@@ -255,7 +285,7 @@ resource "azuread_group_member" "group_membership" {
 }
 
 // Note: this is under the assumption that all display names in users.csv are unique. In production, you'd want a more reliable key (e.g. email or a dedicated username column) to avoid ambiguity.
-// Add users to eligible roles from users.csv (DisplayName -> EligibleRoles)
+// This data source fetches all available role templates (e.g., "Global Administrator", "User Administrator") 
 data "azuread_directory_role_templates" "eligible_roles" {
 }
 
@@ -264,11 +294,11 @@ data "azuread_directory_role_templates" "eligible_roles" {
 resource "azuread_directory_role_assignment" "eligible_roles" {
   for_each = {
     for a in local.eligible_role_assignments :
-    "${a.user_key}__${replace(lower(a.role_name), " ", "_")}" => a
+    "${a.upn}__${replace(lower(a.role_name), " ", "_")}" => a
   }
 
   role_id             = local.eligible_role_template_object_ids[each.value.role_name]
-  principal_object_id = local.all_user_object_ids[each.value.user_key]
+  principal_object_id = local.all_user_object_ids[each.value.upn]
 }
 
 // Output: list of eligible role assignments created (or already existing) for users
