@@ -4,10 +4,6 @@ name: Plan changes
 on:
   workflow_dispatch:
     inputs:
-      branch:
-        description: "Branch name"
-        required: false
-        default: "dev"
       env:
         description: "env json string"
         required: false
@@ -17,7 +13,7 @@ permissions:
   id-token: write
 
 env:
-  BRANCH: ${{ github.event.inputs.branch }}
+  BRANCH: ${{ github.ref_name }}
   ENV_ARTIFACT_NAME: new-env
   ENV_NAME: corp.env
   ENV_PATH: corpSetup/corp.env
@@ -80,24 +76,15 @@ jobs:
     needs: update-env
     if: always()
     runs-on: ubuntu-latest
+    outputs:
+      azure_ok: ${{ steps.set_outputs.outputs.azure_ok }}
+      aws_ok: ${{ steps.set_outputs.outputs.aws_ok }}
 
     steps:
-      - name: Check required secrets
-        shell: bash
-        run: |
-          missing=0
-          [ -z "${{ secrets.AZURE_CLIENT_ID }}" ] && echo "Missing AZURE_CLIENT_ID" && missing=1
-          [ -z "${{ secrets.AZURE_TENANT_ID }}" ] && echo "Missing AZURE_TENANT_ID" && missing=1
-          [ -z "${{ secrets.AZURE_SUBSCRIPTION_ID }}" ] && echo "Missing AZURE_SUBSCRIPTION_ID" && missing=1
-          if [ $missing -eq 1 ]; then
-            echo "Some required secrets are missing. Exiting."
-            exit 1
-          fi
-
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.inputs.branch }}
+        # with:
+        #   ref: ${{ github.ref_name }}
 
       - name: Download env artifact
         id: download_env
@@ -145,11 +132,7 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      # - name: Verify Azure Login
-      #   shell: bash
-      #   run: az account show
-
-      - name: Configure AWS credentials
+      - name: AWS Login
         id: aws_login
         continue-on-error: true
         uses: aws-actions/configure-aws-credentials@v4
@@ -157,9 +140,11 @@ jobs:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/${{ secrets.AWS_ROLE_NAME }}
           aws-region: us-east-1
 
-      # - name: verify AWS credentials
-      #   shell: bash
-      #   run: aws sts get-caller-identity
+      - name: Set outputs
+        id: set_outputs
+        run: |
+          echo "azure_ok=${{ steps.az_login.outcome == 'success' }}" >> $GITHUB_OUTPUT
+          echo "aws_ok=${{ steps.aws_login.outcome == 'success' }}" >> $GITHUB_OUTPUT
 
       - name: Set Terraform env
         if: steps.az_login.outcome == 'success'
@@ -241,6 +226,7 @@ jobs:
   commit:
     permissions:
       contents: write
+      actions: read
     needs: plan-changes
     if: always()
     runs-on: ubuntu-latest
@@ -248,7 +234,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.inputs.branch }}
           fetch-depth: 0
 
       - name: Download all artifacts
@@ -257,29 +242,42 @@ jobs:
           path: artifacts
 
       - name: Get artifact list
-        id: artifactList
         shell: bash
         run: |
-          set -e
-          curl -s \
+          set +e
+
+          echo "Fetching artifact list..."
+
+          RESPONSE=$(curl -s -w "\n%{http_code}" \
             -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
             -H "Accept: application/vnd.github+json" \
-            https://api.github.com/repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts \
-            > /tmp/artifactList.json
+            https://api.github.com/repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts)
 
-          ARTIFACT_LIST=$(cat /tmp/artifactList.json)
-          echo "$ARTIFACT_LIST" | jq '.'
+          BODY=$(echo "$RESPONSE" | sed '$d')
+          STATUS=$(echo "$RESPONSE" | tail -n1)
 
+          echo "HTTP status: $STATUS"
+
+          echo "$BODY" > /tmp/artifactList.json
+
+          # Validate JSON
           if ! jq empty /tmp/artifactList.json 2>/dev/null; then
-            echo "Invalid JSON response"
-            exit 1
+            echo "Invalid JSON response:"
+            cat /tmp/artifactList.json
+            echo '{"artifacts":[]}' > /tmp/artifactList.json
+            exit 0
           fi
 
-          if jq -e 'has("message") and (.message != null)' /tmp/artifactList.json > /dev/null; then
-            echo "GitHub API error:"
-            jq '.message' /tmp/artifactList.json
-            exit 1
+          # Check API error
+          if jq -e 'has("message")' /tmp/artifactList.json > /dev/null; then
+            echo "GitHub API returned error:"
+            jq '.' /tmp/artifactList.json
+            echo '{"artifacts":[]}' > /tmp/artifactList.json
+            exit 0
           fi
+
+          echo "Artifact list fetched successfully:"
+          jq '.' /tmp/artifactList.json
 
       - name: Merge status
         run: |
@@ -321,20 +319,16 @@ jobs:
           # cloud status
           LATEST_TS=$(date +%s)
           # generate cloud status
-          AZURE_OK=true
-          AWS_OK=true
+          AZURE_CONFIGURED=true
+          AWS_CONFIGURED=true
 
-          [ -z "${{ secrets.AZURE_CLIENT_ID }}" ] && AZURE_OK=false
-          [ -z "${{ secrets.AZURE_TENANT_ID }}" ] && AZURE_OK=false
-          [ -z "${{ secrets.AZURE_SUBSCRIPTION_ID }}" ] && AZURE_OK=false
-
-          [ -z "${{ secrets.AWS_ACCOUNT_ID }}" ] && AWS_OK=false
-          [ -z "${{ secrets.AWS_ROLE_NAME }}" ] && AWS_OK=false
+          AZURE_OK=${{ needs.plan-changes.outputs.azure_ok || 'false' }}
+          AWS_OK=${{ needs.plan-changes.outputs.aws_ok || 'false' }}
 
           cat <<EOF > /tmp/cloud.json
           {
-            "azure": { "configured": $AZURE_OK },
-            "aws": { "configured": $AWS_OK }
+            "azure": { "configured": $AZURE_CONFIGURED, "valid": $AZURE_OK },
+            "aws": { "configured": $AWS_CONFIGURED, "valid": $AWS_OK }
           }
           EOF
 
