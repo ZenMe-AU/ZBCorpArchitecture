@@ -74,7 +74,7 @@ runs:
           PLAN_PATH="corpSetup/${{ inputs.dir }}/${{ inputs.json_plan_file }}"
         fi
 
-        cat <<EOF > corpSetup/${{ inputs.dir }}/${{ inputs.stage_status_file }}
+        cat <<EOF > ${{ inputs.stage_status_file }}
         {
           "runId": "${{ github.run_id }}",
           "stage": "${{ inputs.stage }}",
@@ -94,7 +94,7 @@ runs:
         path: corpSetup/${{ inputs.dir }}/${{ inputs.stage_status_file }}
 
     - name: Upload artifacts (JSON plan)
-      if: always()
+      if: steps.run.outcome == 'success'
       uses: actions/upload-artifact@v4
       with:
         if-no-files-found: ignore
@@ -102,7 +102,7 @@ runs:
         path: corpSetup/${{ inputs.dir }}/${{ inputs.json_plan_file }}
 
     - name: Upload artifacts (tf plan)
-      if: always()
+      if: steps.run.outcome == 'success'
       uses: actions/upload-artifact@v4
       with:
         if-no-files-found: ignore
@@ -110,7 +110,7 @@ runs:
         path: corpSetup/${{ inputs.dir }}/${{ inputs.binary_plan_file }}
 
     - name: Upload artifacts (dist)
-      if: always()
+      if: steps.run.outcome == 'success'
       uses: actions/upload-artifact@v4
       with:
         if-no-files-found: ignore
@@ -120,7 +120,7 @@ runs:
           corpSetup/${{ inputs.dir }}/**/*.zip
 
     - name: Upload artifacts (pkg)
-      if: always()
+      if: steps.run.outcome == 'success'
       uses: actions/upload-artifact@v4
       with:
         if-no-files-found: ignore

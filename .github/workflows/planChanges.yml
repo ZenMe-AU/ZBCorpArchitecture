@@ -31,7 +31,7 @@ jobs:
         shell: bash
         run: |
           mkdir -p $(dirname $ENV_PATH)
-          echo "NAME=${{ vars.NAME }}" > $ENV_PATH
+          [ -n "${{ vars.NAME }}" ] && echo "NAME=${{ vars.NAME }}" >> $ENV_PATH || true
           [ -n "${{ vars.DNS }}" ] && echo "DNS=${{ vars.DNS }}" >> $ENV_PATH || true
           [ -n "${{ vars.SUBSCRIPTION_ID }}" ] && echo "SUBSCRIPTION_ID=${{ vars.SUBSCRIPTION_ID }}" >> $ENV_PATH || true
 
@@ -328,8 +328,8 @@ jobs:
 
       - name: Commit results
         run: |
-          git config user.name "github-actions"
-          git config user.email "actions@github.com"
+          git config user.name "z3ninstall3r github actions"
+          git config user.email "z3ninstall3r_github_actions@z3ninstall3r.com"
 
           # commit local changes if any
           git add corpSetup
