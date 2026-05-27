@@ -98,7 +98,7 @@ runs:
       uses: actions/upload-artifact@v4
       with:
         if-no-files-found: ignore
-        name: ${{ inputs.dir }}-planObj
+        name: ${{ inputs.dir }}-planJson
         path: corpSetup/${{ inputs.dir }}/${{ inputs.json_plan_file }}
 
     - name: Upload artifacts (tf plan)
@@ -118,3 +118,11 @@ runs:
         path: |
           corpSetup/${{ inputs.dir }}/**/dist/**
           corpSetup/${{ inputs.dir }}/**/*.zip
+
+    - name: Upload artifacts (pkg)
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        if-no-files-found: ignore
+        name: ${{ inputs.dir }}-pkg
+        path: corpSetup/${{ inputs.dir }}/

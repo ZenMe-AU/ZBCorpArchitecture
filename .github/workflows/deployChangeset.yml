@@ -1,0 +1,70 @@
+name: Deploy changeset
+
+on:
+    workflow_dispatch:
+        inputs:
+            run_id:
+                required: true
+                description: "planChanges run ID"
+            dir:
+                required: true
+                description: "Stage directory name (e.g. c01subscription)"
+            github_env_name:
+                required: false
+                description: "GitHub Environment name"
+
+permissions:
+    id-token: write
+    contents: read
+
+jobs:
+    deploy:
+        runs-on: ubuntu-latest
+        environment: ${{ inputs.github_env_name }}
+
+        steps:
+            - name: Download pkg artifact
+              uses: actions/download-artifact@v4
+              with:
+                  name: ${{ inputs.dir }}-pkg
+                  path: stage
+                  run-id: ${{ inputs.run_id }}
+                  github-token: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Install Terraform
+              uses: hashicorp/setup-terraform@v2
+              with:
+                  terraform_version: 1.6.6
+                  terraform_wrapper: false
+
+            - name: Azure Login
+              id: az_login
+              continue-on-error: true
+              uses: azure/login@v2
+              with:
+                  client-id: ${{ vars.AZURE_CLIENT_ID }}
+                  tenant-id: ${{ vars.AZURE_TENANT_ID }}
+                  subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+            - name: AWS Login
+              id: aws_login
+              continue-on-error: true
+              uses: aws-actions/configure-aws-credentials@v4
+              with:
+                  role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/${{ vars.AWS_ROLE_NAME }}
+                  aws-region: us-east-1
+
+            - name: Set Terraform env
+              if: steps.az_login.outcome == 'success'
+              shell: bash
+              run: |
+                  echo "ARM_CLIENT_ID=${{ vars.AZURE_CLIENT_ID }}" >> $GITHUB_ENV
+                  echo "ARM_TENANT_ID=${{ vars.AZURE_TENANT_ID }}" >> $GITHUB_ENV
+                  echo "ARM_SUBSCRIPTION_ID=${{ vars.AZURE_SUBSCRIPTION_ID }}" >> $GITHUB_ENV
+                  echo "ARM_USE_OIDC=true" >> $GITHUB_ENV
+
+            - name: Terraform apply
+              working-directory: stage
+              run: |
+                  terraform init
+                  terraform apply -auto-approve tfplan

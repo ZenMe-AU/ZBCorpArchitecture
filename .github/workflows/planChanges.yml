@@ -4,8 +4,8 @@ name: Plan changes
 on:
   workflow_dispatch:
     inputs:
-      env:
-        description: "env json string"
+      github_env_name:
+        description: "GitHub Environment name"
         required: false
 
 permissions:
@@ -23,48 +23,17 @@ jobs:
   update-env:
     permissions:
       contents: write
-    if: ${{ github.event.inputs.env != '' }}
+    environment: ${{ inputs.github_env_name }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Merge env file
+      - name: Write env vars
         shell: bash
         run: |
-          # parse old env safely
-          OLD_JSON="{}"
-
-          if [ -f "$ENV_PATH" ]; then
-            while IFS='=' read -r key value; do
-              [[ -z "$key" || "$key" =~ ^# ]] && continue
-
-              OLD_JSON=$(jq -n \
-                --argjson obj "$OLD_JSON" \
-                --arg k "$key" \
-                --arg v "$value" \
-                '$obj + {($k): $v}')
-            done < "$ENV_PATH"
-          fi
-
-          # parse new env
-          NEW_JSON=$(cat <<EOF
-          ${{ github.event.inputs.env }}
-          EOF
-          )
-
-          if [ -z "$NEW_JSON" ] || [ "$NEW_JSON" = "null" ]; then
-            NEW_JSON="{}"
-          fi
-
-          # merge env
-          MERGED=$(jq -n \
-            --argjson old "$OLD_JSON" \
-            --argjson new "$NEW_JSON" \
-            '$old * $new')
-
-          echo "$MERGED" > merged.json
-
-          # back to .env
-          jq -r 'to_entries | .[] | "\(.key)=\(.value)"' merged.json > "$ENV_PATH"
+          mkdir -p $(dirname $ENV_PATH)
+          echo "NAME=${{ vars.NAME }}" > $ENV_PATH
+          [ -n "${{ vars.DNS }}" ] && echo "DNS=${{ vars.DNS }}" >> $ENV_PATH || true
+          [ -n "${{ vars.SUBSCRIPTION_ID }}" ] && echo "SUBSCRIPTION_ID=${{ vars.SUBSCRIPTION_ID }}" >> $ENV_PATH || true
 
       - name: Upload merged env
         uses: actions/upload-artifact@v4
@@ -74,6 +43,7 @@ jobs:
 
   plan-changes:
     needs: update-env
+    environment: ${{ inputs.github_env_name }}
     if: always()
     runs-on: ubuntu-latest
     outputs:
@@ -88,7 +58,6 @@ jobs:
 
       - name: Download env artifact
         id: download_env
-        if: ${{ github.event.inputs.env != '' }}
         uses: actions/download-artifact@v4
         with:
           name: ${{ env.ENV_ARTIFACT_NAME }}
@@ -128,16 +97,16 @@ jobs:
         continue-on-error: true
         uses: azure/login@v2
         with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
       - name: AWS Login
         id: aws_login
         continue-on-error: true
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/${{ secrets.AWS_ROLE_NAME }}
+          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/${{ vars.AWS_ROLE_NAME }}
           aws-region: us-east-1
 
       - name: Set outputs
@@ -150,9 +119,9 @@ jobs:
         if: steps.az_login.outcome == 'success'
         shell: bash
         run: |
-          echo "ARM_CLIENT_ID=${{ secrets.AZURE_CLIENT_ID }}" >> $GITHUB_ENV
-          echo "ARM_TENANT_ID=${{ secrets.AZURE_TENANT_ID }}" >> $GITHUB_ENV
-          echo "ARM_SUBSCRIPTION_ID=${{ secrets.AZURE_SUBSCRIPTION_ID }}" >> $GITHUB_ENV
+          echo "ARM_CLIENT_ID=${{ vars.AZURE_CLIENT_ID }}" >> $GITHUB_ENV
+          echo "ARM_TENANT_ID=${{ vars.AZURE_TENANT_ID }}" >> $GITHUB_ENV
+          echo "ARM_SUBSCRIPTION_ID=${{ vars.AZURE_SUBSCRIPTION_ID }}" >> $GITHUB_ENV
           echo "ARM_USE_OIDC=true" >> $GITHUB_ENV
 
       - name: Run stage c01
@@ -168,7 +137,6 @@ jobs:
 
       - name: Run stage c02
         continue-on-error: true
-
         uses: ./.github/actions/update-stage-status
         with:
           stage: c02
@@ -180,11 +148,21 @@ jobs:
 
       - name: Run stage c05
         continue-on-error: true
-
         uses: ./.github/actions/update-stage-status
         with:
           stage: c05
           dir: c05rootrg
+          needs_azure: true
+          needs_aws: false
+          azure_ok: ${{ steps.az_login.outcome == 'success' }}
+          aws_ok: ${{ steps.aws_login.outcome == 'success' }}
+
+      - name: Run stage c07
+        continue-on-error: true
+        uses: ./.github/actions/update-stage-status
+        with:
+          stage: c07
+          dir: c07userAccounts
           needs_azure: true
           needs_aws: false
           azure_ok: ${{ steps.az_login.outcome == 'success' }}
@@ -290,9 +268,9 @@ jobs:
             FILE="$dir/status.json"
             [ -f "$FILE" ] || continue
             STAGE_NAME=$(jq -r '.name' "$FILE")
-            PLAN_ID=$(echo "$ARTIFACT_LIST" | jq -r --arg name "${STAGE_NAME}-planObj" '.artifacts[]? | select(.name==$name) | .id')
+            PLAN_ID=$(echo "$ARTIFACT_LIST" | jq -r --arg name "${STAGE_NAME}-planJson" '.artifacts[]? | select(.name==$name) | .id')
             DIST_ID=$(echo "$ARTIFACT_LIST" | jq -r --arg name "${STAGE_NAME}-dist" '.artifacts[]? | select(.name==$name) | .id')
-            PLAN_URL=$(echo "$ARTIFACT_LIST" | jq -r --arg name "${STAGE_NAME}-planObj" '.artifacts[]? | select(.name==$name) | .archive_download_url')
+            PLAN_URL=$(echo "$ARTIFACT_LIST" | jq -r --arg name "${STAGE_NAME}-planJson" '.artifacts[]? | select(.name==$name) | .archive_download_url')
             DIST_URL=$(echo "$ARTIFACT_LIST" | jq -r --arg name "${STAGE_NAME}-dist" '.artifacts[]? | select(.name==$name) | .archive_download_url')
             [ -z "$PLAN_ID" ] && PLAN_ID=null
             [ -z "$DIST_ID" ] && DIST_ID=null
