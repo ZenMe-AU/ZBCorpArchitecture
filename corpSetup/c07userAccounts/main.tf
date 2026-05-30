@@ -5,10 +5,10 @@
 // - [x] Add users to groups
 // - [x] Add users to eligible roles (requires Graph / elevated privileges)
 // - [x - SamAccountName] add other properties to users (e.g. SamAccountName, PrimaryEmail, OtherEmail) from users.csv
-// - [ ] Enable Passkey (FIDO2) for users (requires Graph / admin action)
-// - [ ] Create 1-day temporary access passes and output to a file (external script)
-// - [ ] Output a file with every user's temporary access pass and email address
-//         (avoid storing secrets in Terraform state; use secure script/secret store)
+// - [x] Enable Passkey (FIDO2) for users (requires Graph / admin action)
+// - [x] Create 1-day temporary access passes for all users
+// - [x] Output Apass.csv with each user's display name, email, and temporary access pass details
+//         (the pass is returned by Graph on create, so it is still present in Terraform state)
 
 variable "resource_group_name" {
   description = "The name of the resource group"
@@ -137,6 +137,25 @@ resource "msgraph_resource_action" "make_custom_domain_primary" {
   depends_on = [msgraph_resource_action.verify_custom_domain]
 }
 
+resource "msgraph_update_resource" "enable_fido2" {
+  url         = "policies/authenticationMethodsPolicy/authenticationMethodConfigurations/Fido2"
+  api_version = "v1.0"
+
+  body = {
+    state = "enabled"
+    includeTargets = [
+      {
+        "@odata.type"          = "#microsoft.graph.authenticationMethodTarget"
+        id                      = "all_users"
+        targetType              = "group"
+        isRegistrationRequired  = false
+      }
+    ]
+  }
+
+  depends_on = [msgraph_resource_action.make_custom_domain_primary]
+}
+
 // Add groups from groups.csv, Load users.csv, Create users, Add users to groups, Add groups to groups
 locals {
   # loads groups.csv -> used by azuread_group
@@ -245,6 +264,10 @@ locals {
   eligible_role_template_object_ids = {
     for rt in data.azuread_directory_role_templates.eligible_roles.role_templates : rt.display_name => rt.object_id
   }
+
+  temporary_access_pass_users = {
+    for upn, user in local.users_map : upn => user
+  }
 }
 
 // Create users (azuread_user resources)
@@ -299,6 +322,62 @@ resource "azuread_directory_role_assignment" "eligible_roles" {
 
   role_id             = local.eligible_role_template_object_ids[each.value.role_name]
   principal_object_id = local.all_user_object_ids[each.value.upn]
+}
+
+resource "msgraph_resource_action" "temporary_access_pass" {
+  for_each = local.temporary_access_pass_users
+
+  api_version  = "v1.0"
+  method       = "POST"
+  resource_url = "users/${each.key}/authentication/temporaryAccessPassMethods"
+
+  body = {
+    isUsableOnce      = true
+    lifetimeInMinutes = 480
+  }
+
+  response_export_values = {
+    temporary_access_pass = "temporaryAccessPass"
+    id                    = "id"
+    created_date_time     = "createdDateTime"
+    start_date_time       = "startDateTime"
+    lifetime_in_minutes   = "lifetimeInMinutes"
+    is_usable_once        = "isUsableOnce"
+    is_usable             = "isUsable"
+    usability_reason      = "methodUsabilityReason"
+  }
+
+  depends_on = [
+    azuread_user.users
+  ]
+}
+
+locals {
+  temporary_access_pass_rows = [
+    for upn, user in local.temporary_access_pass_users : {
+      display_name = trimspace(user.DisplayName)
+      email        = coalesce(try(trimspace(user.PrimaryEmail), ""), trimspace(user.Upn))
+      access_pass_code = msgraph_resource_action.temporary_access_pass[upn].output.temporary_access_pass
+    }
+  ]
+}
+
+resource "local_file" "apass_csv" {
+  filename = "${path.module}/Apass.csv"
+
+  content = join("\n", concat(
+    ["display_name,email,access_pass_code"],
+    [
+      for row in local.temporary_access_pass_rows : format(
+        "\"%s\",\"%s\",\"%s\"",
+        replace(row.display_name, "\"", "\"\""),
+        replace(row.email, "\"", "\"\""),
+        replace(row.access_pass_code, "\"", "\"\"")
+      )
+    ]
+  ))
+
+  depends_on = [msgraph_resource_action.temporary_access_pass]
 }
 
 // Output: list of eligible role assignments created (or already existing) for users

@@ -158,27 +158,39 @@ After all three steps are successfully submitted:
 
 ![Policy permissions](images/image7.png)
 
-19. You will return to the permissions table, and the status will show *Not granted for [Your Org]*
+19. Click **+ Add a permission** again
 
-20. Click the button right above the table that says **Grant admin consent for [Your Org Name]**
+20. Select **Microsoft Graph** from the list of available APIs
 
-21. Click **Yes** when prompted to confirm
+21. Choose **Application permissions**
 
-22. The app should now be granted that permission.
+22. In the search box, type: Domain.ReadWrite.All
 
-23. Now on the far-left menu click on **Roles & admins**
+23. Expand the **Domain** section check the box next to Domain.ReadWrite.All, and click **Add permissions** at the bottom
 
-24. In the search bar type "Cloud Application Administrator"
+24. do this again for the permission "UserAuthMethod-TAP.ReadWrite.All"
 
-25. Click on the role
+25. You will return to the permissions table, and the status will show *Not granted for [Your Org]*
 
-26. Click **+ Add assignments**
+26. Click the button right above the table that says **Grant admin consent for [Your Org Name]**
 
-27. In the search bar paste in your app registration's Application (client) ID
+27. Click **Yes** when prompted to confirm
 
-28. Select the tick box next to your app registration and click **Add**
+28. The app should now be granted that permission.
 
-29. Your app registration should now have the Cloud Application Administrator role
+29. Now on the far-left menu click on **Roles & admins**
+
+30. In the search bar type "Cloud Application Administrator"
+
+31. Click on the role
+
+32. Click **+ Add assignments**
+
+33. In the search bar paste in your app registration's Application (client) ID
+
+34. Select the tick box next to your app registration and click **Add**
+
+35. Your app registration should now have the Cloud Application Administrator role
 
 # Plugging app registration into Terraform
 
@@ -189,10 +201,10 @@ After all three steps are successfully submitted:
     ```
     tenant_id     = your-actual-tenant-id
     client_id     = your-actual-client-id
-    client_secret = your-actual-client-secret
+    client_secret = your-actual-client-secret-value
     ```
 1. replace 'your-actual-tenant-id' with your app registration's actual tenant id
 
 1. replace 'your-actual-client-id' with your app registration's actual client id
 
-1. replace 'your-actual-client-secret' with your app registration's actual client secret
+1. replace 'your-actual-client-secret' with your app registration's actual client secret value

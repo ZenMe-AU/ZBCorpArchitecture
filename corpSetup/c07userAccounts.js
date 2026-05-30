@@ -101,18 +101,31 @@ function main(corpEnvFile) {
     throw new Error("NAME is not set in corp.env.");
   }
 
+  const clientId = env.get("client_id");
+  const clientSecret = env.get("client_secret");
+  const tenantId = env.get("tenant_id");
+  if (!clientId || !clientSecret || !tenantId) {
+    throw new Error("client_id, client_secret, and tenant_id must be set in corp.env.");
+  }
+
   const resourceGroupName = getResourceGroupName("root", corpName);
 
   // Step 4: Export Terraform variables for downstream terraform commands.
   setTfVar("subscription_id", subscriptionId);
   setTfVar("dns_name", dnsName);
   setTfVar("resource_group_name", resourceGroupName);
+  setTfVar("client_id", clientId);
+  setTfVar("client_secret", clientSecret);
+  setTfVar("tenant_id", tenantId);
   // setTfVar("domain", dnsName);
 
   console.log("workingDir:", workingDirName);
   console.log("subscription_id:", subscriptionId);
   console.log("dns_name:", dnsName);
   console.log("resource_group_name:", resourceGroupName);
+  console.log("client_id:", clientId);
+  //console.log("client_secret:", clientSecret);
+  console.log("tenant_id:", tenantId);
 
   // Step 5: Initialize Terraform for c07userAccounts.
   execSync("terraform init", { stdio: "inherit", shell: true, cwd: workingDirName });

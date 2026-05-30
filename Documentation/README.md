@@ -31,6 +31,16 @@
     1. sign in with your azure email.
     1. when the subscription selection screen pops up make sure to select the new subscription that matches the one inside of corp.env
     1. once the new subscription has be selected you should now be done with c01 stage
+    1. Go to you Azure portal and on the home page find the subscriptions page
+    1. on the subscriptions page select the subscription you had just created using c01
+    1. from the subscription overview page go to Access control (IAM)
+    1. on the top click "Add" and then "Add role assignment"
+    1. on "Privileged administrator roles" search for Contributor
+    1. on the members section on the "Assign access to" field select "User, group, or service principal"
+    1. on the Members field click "Select members"
+    1. type in 'corpDeployer' and then select it
+    1. at the bottom click "Review + assign"
+
 
 1. Execute c02. Run the following in the terminal:
     ``` ps
