@@ -70,19 +70,6 @@ jobs:
           # back to .env
           jq -r 'to_entries | .[] | "\(.key)=\(.value)"' merged.json > "$ENV_PATH"
 
-      # - name: Commit env
-      #   run: |
-      #     BRANCH=${{ github.event.inputs.branch }}
-      #     git config user.name "github-actions"
-      #     git config user.email "actions@github.com"
-
-      #     git fetch origin || true
-      #     git checkout $BRANCH || git checkout -b $BRANCH
-      #     git pull --rebase origin $BRANCH || true
-
-      #     git add corpSetup/corp.env
-      #     git diff --cached --quiet || git commit -m "update env"
-      #     git push origin $BRANCH
       - name: Upload merged env
         uses: actions/upload-artifact@v4
         with:
@@ -113,15 +100,19 @@ jobs:
           ref: ${{ github.event.inputs.branch }}
 
       - name: Download env artifact
+        id: download_env
         if: ${{ github.event.inputs.env != '' }}
         uses: actions/download-artifact@v4
         with:
           name: ${{ env.ENV_ARTIFACT_NAME }}
           path: artifacts
+
       - name: Apply env
-        if: ${{ github.event.inputs.env != '' }}
+        if: steps.download_env.outcome == 'success'
         run: |
-          cp artifacts/$ENV_ARTIFACT_NAME/$ENV_NAME $ENV_PATH
+          if [ -f artifacts/$ENV_NAME ]; then
+            cp artifacts/$ENV_NAME $ENV_PATH
+          fi
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -265,32 +256,70 @@ jobs:
         with:
           path: artifacts
 
-      - name: Organize files
+      - name: Get artifact list
+        id: artifactList
+        shell: bash
         run: |
-          mkdir -p corpSetup
+          set -e
+          curl -s \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts \
+            > /tmp/artifactList.json
 
-          if [ -d artifacts ]; then
-            for dir in artifacts/*; do
-              [ -d "$dir" ] || continue
+          ARTIFACT_LIST=$(cat /tmp/artifactList.json)
+          echo "$ARTIFACT_LIST" | jq '.'
 
-              name=$(basename "$dir")
-              mkdir -p corpSetup/$name
-              cp -r "$dir"/* corpSetup/$name/ || true
-            done
+          if ! jq empty /tmp/artifactList.json 2>/dev/null; then
+            echo "Invalid JSON response"
+            exit 1
+          fi
+
+          if jq -e 'has("message") and (.message != null)' /tmp/artifactList.json > /dev/null; then
+            echo "GitHub API error:"
+            jq '.message' /tmp/artifactList.json
+            exit 1
           fi
 
       - name: Merge status
         run: |
-          FILES=$(find corpSetup -mindepth 2 -name status.json)
+          mkdir -p corpSetup
+          ARTIFACT_LIST=$(cat /tmp/artifactList.json)
 
-          if [ -z "$FILES" ]; then
-            echo "[]" > /tmp/stages.json
-            LATEST_TS=$(date +%s)
-          else
-            jq -s '.' $FILES > /tmp/stages.json
-            LATEST_TS=$(jq '[.[] | .timestamp] | max' /tmp/stages.json)
-          fi
+          RESULT="[]"
+          DIRS=$(find artifacts -mindepth 1 -name "*-status")
+          for dir in $DIRS; do
+            FILE="$dir/status.json"
+            [ -f "$FILE" ] || continue
+            STAGE_NAME=$(jq -r '.name' "$FILE")
+            PLAN_ID=$(echo "$ARTIFACT_LIST" | jq -r --arg name "${STAGE_NAME}-planObj" '.artifacts[]? | select(.name==$name) | .id')
+            DIST_ID=$(echo "$ARTIFACT_LIST" | jq -r --arg name "${STAGE_NAME}-dist" '.artifacts[]? | select(.name==$name) | .id')
+            PLAN_URL=$(echo "$ARTIFACT_LIST" | jq -r --arg name "${STAGE_NAME}-planObj" '.artifacts[]? | select(.name==$name) | .archive_download_url')
+            DIST_URL=$(echo "$ARTIFACT_LIST" | jq -r --arg name "${STAGE_NAME}-dist" '.artifacts[]? | select(.name==$name) | .archive_download_url')
+            [ -z "$PLAN_ID" ] && PLAN_ID=null
+            [ -z "$DIST_ID" ] && DIST_ID=null
+            [ -z "$PLAN_URL" ] && PLAN_URL=""
+            [ -z "$DIST_URL" ] && DIST_URL=""
 
+            UPDATED=$(jq \
+              --argjson plan "$PLAN_ID" \
+              --argjson dist "$DIST_ID" \
+              --arg planUrl "$PLAN_URL" \
+              --arg distUrl "$DIST_URL" \
+              '. + {
+                  planJsonId: $plan,
+                  distId: $dist,
+                  planJsonUrl: $planUrl,
+                  distUrl: $distUrl
+              }' "$FILE")
+
+            RESULT=$(echo "$RESULT" | jq ". + [ $UPDATED ]")
+          done
+
+          echo "$RESULT" > /tmp/stages.json
+
+          # cloud status
+          LATEST_TS=$(date +%s)
           # generate cloud status
           AZURE_OK=true
           AWS_OK=true
@@ -321,10 +350,8 @@ jobs:
               stages: $stages[0]
             }' > $DEPLOYMENT_CHANGESET_PATH
 
-      - name: Update env file
-        run: |
-          if [ -f artifacts/$ENV_ARTIFACT_NAME/$ENV_NAME ]; then
-            cp artifacts/$ENV_ARTIFACT_NAME/$ENV_NAME $ENV_PATH
+          if [ -f artifacts/${{ env.ENV_ARTIFACT_NAME }}/${{ env.ENV_NAME }} ]; then
+            cp artifacts/${{ env.ENV_ARTIFACT_NAME }}/${{ env.ENV_NAME }} corpSetup/${{ env.ENV_NAME }}
           fi
 
       - name: Commit results
