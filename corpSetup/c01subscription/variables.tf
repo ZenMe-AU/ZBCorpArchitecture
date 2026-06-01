@@ -3,17 +3,17 @@
 variable "billing_account_name" {
   description = "The name of the Azure Billing Account"
   type        = string
-  default     = "edfff974-6731-50ea-0fa2-408ef0b836c6:259cc357-9fd2-4fba-a7b0-a77f81050f02_2019-05-31"
+  default     = "7fb91379-7253-5555-7fc5-c0635f5b57a1:15c45fa6-5313-480e-98c1-7c88255ab94e_2019-05-31"
 }
 variable "billing_profile_name" {
   description = "The name of the Azure Billing Profile"
   type        = string
-  default     = "XVDH-IO2E-BG7-PGB"
+  default     = "E3SG-2O2T-BG7-PGB"
 }
 variable "invoice_section_name" {
   description = "The name of the new Azure Invoice Section to be created"
   type        = string
-  default     = "239e368b-1156-4a0e-95f5-6d8952ae8bac"
+  default     = "47b81dbe-df4a-41d3-8b50-7a4001464a1a"
 }
 variable "subscription_name" {
   description = "The name of the Azure Subscription"
@@ -26,5 +26,5 @@ variable "subscription_id" {
 variable "contact_emails" {
   description = "List of contact emails for budget notification"
   type        = list(string)
-  default     = ["jake.vosloo@outlook.com", "LukeYeh@zenme.com.au"]
+  default     = ["ryworkze@gmail.com"]
 }

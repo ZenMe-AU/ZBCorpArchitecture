@@ -121,12 +121,25 @@ function main(corpEnvFile) {
         // need Groups Administrator role to run!!!
         const subscription_name = `${corpName}-subscription`;
         setTfVar("subscription_name", subscription_name);
-        setTfVar("subscription_id", getSubscriptionId());
-        // const subscriptionId = env.get("SUBSCRIPTION_ID");
+        // Always prefer the subscription created/persisted by c01 in corp.env.
         let subscriptionId = env.get("SUBSCRIPTION_ID") ?? getSubscriptionId(subscription_name);
         if (!subscriptionId) {
           throw new Error("SUBSCRIPTION_ID is not set in corp.env.");
         }
+
+        try {
+          execSync(`az account show --subscription ${subscriptionId} --query id -o tsv`, {
+            encoding: "utf8",
+            stdio: ["pipe", "pipe", "pipe"],
+          }).trim();
+          execSync(`az account set --subscription ${subscriptionId}`, { stdio: "pipe", shell: true });
+        } catch (_) {
+          throw new Error(
+            `SUBSCRIPTION_ID (${subscriptionId}) from corp.env is not available in the current Azure CLI context. ` +
+              "Run 'az login' with the correct tenant/account, then 'az account set --subscription <SUBSCRIPTION_ID>', and retry stage c02."
+          );
+        }
+
         setTfVar("subscription_id", subscriptionId);
         execSync(`terraform init`, { stdio: "pipe", shell: true, cwd: resolve(__dirname, workingDirName) });
         let rgDeployerId, leadDevId, dbAdminDevId, dbAdminTestId, dbAdminProdId;

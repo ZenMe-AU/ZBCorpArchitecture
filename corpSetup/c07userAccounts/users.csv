@@ -1,0 +1,4 @@
+Name,LastName,DisplayName,Location,MemberOfGroups,EligibleRoles,SamAccountName,Upn,PrimaryEmail,OtherEmail
+Name,LastName,Name A LastName,AU,"Developer,LeadDeveloper2","Global Administrator,Directory Readers",Name.A.LastName,Name.A.LastName@z3nm3.com.au,Name.A.LastName@z3nm3.com.au,"Alias1@z3nm3.com.au,Alias1.1@z3nm3.com.au"
+Name,LastName,Name B LastName,AU,"Developer,LeadDeveloper2","Global Administrator,Directory Readers",Name.B.LastName,Name.B.LastName@z3nm3.com.au,Name.B.LastName@z3nm3.com.au,"Alias2@z3nm3.com.au,Alias2.1@z3nm3.com.au"
+Name,LastName,Name C LastName,TW,"Developer,LeadDeveloper2","Global Administrator,Directory Readers",Name.C.LastName,Name.C.LastName@z3nm3.com.au,Name.C.LastName@z3nm3.com.au,"Alias3@z3nm3.com.au,Alias3.1@z3nm3.com.au"

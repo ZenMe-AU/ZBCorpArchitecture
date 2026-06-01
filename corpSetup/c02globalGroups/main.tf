@@ -4,6 +4,7 @@
 resource "azuread_group" "resource_group_deployer" {
     display_name     = "ResourceGroupDeployer"
     security_enabled = true
+    description      = "This group should be assigned as owner of the subscription and should be added as member of all administration groups that are required to deploy resources in the environment"
 }
 
 # Assign the resourcegroup deployer as owner of the subscription
@@ -16,7 +17,7 @@ resource "azurerm_role_assignment" "resource_group_deployer_owner" {
 resource "azuread_group" "lead_developer" {
     display_name       = "LeadDeveloper"
     security_enabled   = true
-    assignable_to_role = true
+    description        = "This group is used to assign environment administration permissions to lead developers." 
 }
 
 # Add LeadDeveloper security group as member of ResourceGroupDeployer

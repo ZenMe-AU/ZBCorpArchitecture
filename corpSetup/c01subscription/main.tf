@@ -16,7 +16,7 @@ resource "azurerm_consumption_budget_subscription" "payg_budget" {
     subscription_id  = "/subscriptions/${azurerm_subscription.payg.subscription_id}"
 
     time_period {
-        start_date = "2026-02-01T00:00:00Z"
+        start_date = formatdate("YYYY-MM-01'T'00:00:00Z", timestamp())
     }
 
     notification {

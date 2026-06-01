@@ -8,10 +8,12 @@ const { execSync } = require("child_process");
 function getSubscriptionId(name = null) {
   try {
     if (name) {
-      return execSync(`az account list --query "[?name=='${name}'].id" -o tsv`, {
+      const result = execSync(`az account list --query "[?name=='${name}'].id" -o tsv`, {
         encoding: "utf8",
         stdio: ["pipe", "pipe", "ignore"],
       }).trim();
+      // Return only the first subscription ID if multiple are returned
+      return result.split('\n')[0].trim();
     }
     return execSync("az account show --query id -o tsv", {
       encoding: "utf8",

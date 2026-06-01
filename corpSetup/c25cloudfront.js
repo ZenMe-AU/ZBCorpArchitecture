@@ -107,11 +107,12 @@ function main(corpEnvFile) {
 
   try {
     // Find the working directory that matches the stage
-    const workingDirName = resolve(__dirname, "c25cloudfront");
-    if (!workingDirName) {
+    const workingDirName = "c25cloudfront";
+    const workingDirPath = resolve(__dirname, workingDirName);
+    if (!workingDirPath) {
       throw new Error(`c25cloudfront directory not found in ${__dirname}`);
     }
-    console.log("workingDir:", workingDirName);
+    console.log("workingDir:", workingDirPath);
     if (!existsSync(corpEnvFile)) {
       throw new Error("corp.env file not found.");
     }
@@ -122,112 +123,86 @@ function main(corpEnvFile) {
     }
     let tfStateList = [];
     try {
-      console.log("Loading existing terraform state in :", workingDirName);
-      tfStateList = execSync("terraform state list", { cwd: resolve(__dirname, workingDirName), encoding: "utf8", stdio: "pipe" })
+      console.log("Loading existing terraform state in :", workingDirPath);
+      tfStateList = execSync("terraform state list", { cwd: workingDirPath, encoding: "utf8", stdio: "pipe" })
         .split("\n")
         .map((s) => s.trim())
         .filter(Boolean);
     } catch {}
     console.log("tfStateList:", tfStateList);
-      
-        const subscriptionId = env.get("SUBSCRIPTION_ID");
-        if (!subscriptionId) {
-          throw new Error("SUBSCRIPTION_ID is not set in corp.env.");
-        }
-        const dnsName = env.get("DNS");
-        if (!dnsName) {
-          throw new Error("DNS is not set in corp.env.");
-        }
-        const tenantId = execSync(`az account show --query tenantId -o tsv`, { encoding: "utf8", stdio: "pipe" }).trim();
-        const accSubscriptionId = getSubscriptionId();
-        if (accSubscriptionId !== subscriptionId) {
-          execSync(`az account set --subscription ${subscriptionId}`, { stdio: "pipe", shell: true });
-          console.log("Switching subscription to", `${corpName}-subscription`);
-        }
-        const resourceGroupName = getResourceGroupName("root", corpName);
-        const storageAccountName = getStorageAccountName(corpName);
-        try {
-          execSync(`az storage account show --resource-group ${resourceGroupName} --name ${storageAccountName}`, { stdio: "ignore" });
-        } catch {
-          throw new Error(`Storage Account ${storageAccountName} is not found. Please run c05rootrg stage first.`);
-        }
-        setTfVar("tenant_id", tenantId);
-        setTfVar("subscription_id", subscriptionId);
-        setTfVar("dns_name", dnsName);
-        setTfVar("resource_group_name", resourceGroupName);
-        const bucketStaticWebsiteSourceFolder = resolve(__dirname, workingDirName, "source", "webpage");
-        const bucketSpaSourceFolder = resolve(__dirname, workingDirName, "source", "loginApp");
-        const lambdaEdgeAuthGuardSourceFolder = resolve(__dirname, workingDirName, "source", "authGuardLambdaEdge");
-        const lambdaEdgeRewriteHeaderSourceFolder = resolve(__dirname, workingDirName, "source", "rewriteHeaderLambdaEdge");
 
-        setTfVar("app_registration_name", getAppRegistrationName(corpName, "login"));
-        setTfVar("bucket_static_website_source_folder", bucketStaticWebsiteSourceFolder);
-        setTfVar("bucket_spa_source_folder", bucketSpaSourceFolder);
-        setTfVar("lambda_edge_auth_guard_source_folder", lambdaEdgeAuthGuardSourceFolder);
-        setTfVar("lambda_edge_rewrite_header_source_folder", lambdaEdgeRewriteHeaderSourceFolder);
-        setTfVar("bucket_static_website_name", getBucketName(corpName, "web"));
-        setTfVar("bucket_spa_name", getBucketName(corpName, "login"));
-        setTfVar("lambda_edge_auth_guard_name", getLambdaFunctionName(corpName, "guard"));
-        setTfVar("lambda_edge_auth_guard_role", getLambdaFunctionRoleName(corpName, "guard"));
-        setTfVar("lambda_edge_rewrite_header_role", getLambdaFunctionRoleName(corpName, "rewriteHeader"));
-        setTfVar("lambda_edge_rewrite_header_name", getLambdaFunctionName(corpName, "rewriteHeader"));
-        setTfVar("cf_unavailable_name", getCloudfrontDistributionName(corpName, "unavailable"));
-        setTfVar("cf_login_name", getCloudfrontDistributionName(corpName, "login"));
-        setTfVar("cf_prod_name", getCloudfrontDistributionName(corpName, "prod"));
-        setTfVar("cloudfront_oac_static_website_name", getCloudfrontOriginAccessControlName(corpName, "web"));
-        setTfVar("cloudfront_oac_spa_name", getCloudfrontOriginAccessControlName(corpName, "login"));
-        setTfVar("origin_request_policy_name", getOriginRequestPolicyName(corpName, "restricted"));
+    const subscriptionId = env.get("SUBSCRIPTION_ID");
+    if (!subscriptionId) {
+      throw new Error("SUBSCRIPTION_ID is not set in corp.env.");
+    }
+    const bucketNameSuffix = subscriptionId.replace(/-/g, "").slice(0, 8).toLowerCase();
+    const dnsName = env.get("DNS");
+    if (!dnsName) {
+      throw new Error("DNS is not set in corp.env.");
+    }
+    const tenantId = execSync(`az account show --query tenantId -o tsv`, { encoding: "utf8", stdio: "pipe" }).trim();
+    const accSubscriptionId = getSubscriptionId();
+    if (accSubscriptionId !== subscriptionId) {
+      execSync(`az account set --subscription ${subscriptionId}`, { stdio: "pipe", shell: true });
+      console.log("Switching subscription to", `${corpName}-subscription`);
+    }
+    const resourceGroupName = getResourceGroupName("root", corpName);
+    const storageAccountName = getStorageAccountName(corpName);
+    try {
+      execSync(`az storage account show --resource-group ${resourceGroupName} --name ${storageAccountName}`, { stdio: "ignore" });
+    } catch {
+      throw new Error(`Storage Account ${storageAccountName} is not found. Please run c05rootrg stage first.`);
+    }
+    setTfVar("tenant_id", tenantId);
+    setTfVar("subscription_id", subscriptionId);
+    setTfVar("dns_name", dnsName);
+    setTfVar("cloudfront_alias_suffix", bucketNameSuffix);
+    setTfVar("resource_group_name", resourceGroupName);
+    const bucketStaticWebsiteSourceFolder = resolve(workingDirPath, "source", "webpage");
+    const bucketSpaSourceFolder = resolve(workingDirPath, "source", "loginApp");
+    const lambdaEdgeAuthGuardSourceFolder = resolve(workingDirPath, "source", "authGuardLambdaEdge");
+    const lambdaEdgeRewriteHeaderSourceFolder = resolve(workingDirPath, "source", "rewriteHeaderLambdaEdge");
 
-        // TODO: remove hardcoded names after confirming the tf stable and import logic works as expected
-        const bucketStaticWebsiteName = `${corpName}-web`;
-        const bucketSpaName = `${corpName}-login`;
-        const lambdaEdgeAuthGuardRole = `${corpName}-authGuard-func-role`;
-        const lambdaEdgeAuthGuardName = `${corpName}-authGuard-func`;
-        const cloudfrontOacStaticWebsiteName = `${corpName}-web-oac`;
-        const cloudfrontOacSpaName = `${corpName}-login-oac`;
-        const appRegistrationName = `${corpName}-login`;
-        const originRequestPolicyName = `${corpName}-origin-request-policy`;
-        const cfUnavailableName = `${corpName}-cf-unavailable`;
-        const cfLoginName = `${corpName}-cf-login`;
-        const cfProdName = `${corpName}-cf-prod`;
-        setTfVar("bucket_static_website_name", bucketStaticWebsiteName);
-        setTfVar("bucket_spa_name", bucketSpaName);
-        setTfVar("bucket_static_website_source_folder", bucketStaticWebsiteSourceFolder);
-        setTfVar("bucket_spa_source_folder", bucketSpaSourceFolder);
-        setTfVar("lambda_edge_auth_guard_role", lambdaEdgeAuthGuardRole);
-        setTfVar("lambda_edge_auth_guard_name", lambdaEdgeAuthGuardName);
-        setTfVar("lambda_edge_auth_guard_source_folder", lambdaEdgeAuthGuardSourceFolder);
-        setTfVar("cloudfront_oac_static_website_name", cloudfrontOacStaticWebsiteName);
-        setTfVar("cloudfront_oac_spa_name", cloudfrontOacSpaName);
-        setTfVar("app_registration_name", appRegistrationName);
-        setTfVar("origin_request_policy_name", originRequestPolicyName);
-        setTfVar("cf_unavailable_name", cfUnavailableName);
-        setTfVar("cf_login_name", cfLoginName);
-        setTfVar("cf_prod_name", cfProdName);
-        //==============================================================
-        execSync(
-          `terraform init -reconfigure\
+    setTfVar("app_registration_name", getAppRegistrationName(corpName, "login"));
+    setTfVar("bucket_static_website_source_folder", bucketStaticWebsiteSourceFolder);
+    setTfVar("bucket_spa_source_folder", bucketSpaSourceFolder);
+    setTfVar("lambda_edge_auth_guard_source_folder", lambdaEdgeAuthGuardSourceFolder);
+    setTfVar("lambda_edge_rewrite_header_source_folder", lambdaEdgeRewriteHeaderSourceFolder);
+    setTfVar("bucket_static_website_name", getBucketName(corpName, `web-${bucketNameSuffix}`));
+    setTfVar("bucket_spa_name", getBucketName(corpName, `login-${bucketNameSuffix}`));
+    setTfVar("lambda_edge_auth_guard_name", getLambdaFunctionName(corpName, "guard"));
+    setTfVar("lambda_edge_auth_guard_role", getLambdaFunctionRoleName(corpName, "guard"));
+    setTfVar("lambda_edge_rewrite_header_role", getLambdaFunctionRoleName(corpName, "rewriteHeader"));
+    setTfVar("lambda_edge_rewrite_header_name", getLambdaFunctionName(corpName, "rewriteHeader"));
+    setTfVar("cf_unavailable_name", getCloudfrontDistributionName(corpName, "unavailable"));
+    setTfVar("cf_login_name", getCloudfrontDistributionName(corpName, "login"));
+    setTfVar("cf_prod_name", getCloudfrontDistributionName(corpName, "prod"));
+    setTfVar("cloudfront_oac_static_website_name", getCloudfrontOriginAccessControlName(corpName, "web"));
+    setTfVar("cloudfront_oac_spa_name", getCloudfrontOriginAccessControlName(corpName, "login"));
+    setTfVar("origin_request_policy_name", getOriginRequestPolicyName(corpName, "restricted"));
+    execSync(
+      `terraform init -reconfigure\
             -backend-config="resource_group_name=${resourceGroupName}" \
             -backend-config="storage_account_name=${storageAccountName}" \
             -backend-config="container_name=terraformstate" \
             -backend-config="key=${workingDirName}.tfstate"`,
-          { stdio: "pipe", shell: true, cwd: resolve(__dirname, workingDirName) }
-        );
+      { stdio: "pipe", shell: true, cwd: workingDirPath }
+    );
 
-        // install dependencies and build for SPA
-        execSync(`pnpm install`, { stdio: "pipe", shell: true });
-        execSync(`pnpm run build`, { stdio: "pipe", shell: true, cwd: bucketSpaSourceFolder });
-        // install dependencies for lambda@edge
-        execSync(`pnpm run build`, { stdio: "pipe", shell: true, cwd: lambdaEdgeAuthGuardSourceFolder });
+    // install dependencies and build for SPA
+    execSync(`pnpm install --ignore-workspace`, { stdio: "inherit", shell: true, cwd: bucketSpaSourceFolder });
+    execSync(`pnpm run build`, { stdio: "inherit", shell: true, cwd: bucketSpaSourceFolder });
+    // install dependencies and build for lambda@edge
+    execSync(`pnpm install --ignore-workspace`, { stdio: "inherit", shell: true, cwd: lambdaEdgeAuthGuardSourceFolder });
+    execSync(`pnpm run build`, { stdio: "inherit", shell: true, cwd: lambdaEdgeAuthGuardSourceFolder });
 
-        // if (!tfStateList.includes("aws_cloudwatch_log_group.lambda_edge_auth_guard_logs ")) {
-        //   execSync(`terraform import aws_cloudwatch_log_group.lambda_edge_auth_guard_logs /aws/lambda/${lambdaEdgeAuthGuardName}`, {
-        //     stdio: "inherit",
-        //     shell: true,
-        //     cwd: resolve(__dirname, workingDirName),
-        //   });
-        // }
-
+    // if (!tfStateList.includes("aws_cloudwatch_log_group.lambda_edge_auth_guard_logs ")) {
+    //   execSync(`terraform import aws_cloudwatch_log_group.lambda_edge_auth_guard_logs /aws/lambda/${lambdaEdgeAuthGuardName}`, {
+    //     stdio: "inherit",
+    //     shell: true,
+    //     cwd: resolve(__dirname, workingDirName),
+    //   });
+    // }
 
     // console.log("Starting Terraform initialization.");
     // // Run terraform

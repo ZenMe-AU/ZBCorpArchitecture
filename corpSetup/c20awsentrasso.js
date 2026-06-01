@@ -5,7 +5,7 @@
 
 /* This script configures the corporate environment with the relevant permissions to allow automated deployments.
  */
-import { execSync } from "child_process";
+import { execFileSync, execSync } from "child_process";
 import { existsSync, readFileSync, writeFileSync } from "fs";
 import { resolve, dirname } from "path";
 import { getSubscriptionId } from "../util/azureCli.cjs";
@@ -118,24 +118,23 @@ function main(corpEnvFile) {
         .filter(Boolean);
     } catch {}
     console.log("tfStateList:", tfStateList);
-    
-        //IMPORTANT: Need Global Administrator role active to run this code
-        const subscriptionId = env.get("SUBSCRIPTION_ID");
-        if (!subscriptionId) {
-          throw new Error("SUBSCRIPTION_ID is not set in corp.env.");
-        }
-        const tenantId = execSync(`az account show --query tenantId -o tsv`, { encoding: "utf8", stdio: "pipe" }).trim();
-        const accSubscriptionId = getSubscriptionId();
-        if (accSubscriptionId !== subscriptionId) {
-          execSync(`az account set --subscription ${subscriptionId}`, { stdio: "pipe", shell: true });
-          console.log("Switching subscription to", `${corpName}-subscription`);
-        }
 
-        setTfVar("tenant_id", tenantId);
-        setTfVar("subscription_id", subscriptionId);
-       
-        // create sso for aws account
+    //IMPORTANT: Need Global Administrator role active to run this code
+    const subscriptionId = env.get("SUBSCRIPTION_ID");
+    if (!subscriptionId) {
+      throw new Error("SUBSCRIPTION_ID is not set in corp.env.");
+    }
+    const tenantId = execSync(`az account show --query tenantId -o tsv`, { encoding: "utf8", stdio: "pipe" }).trim();
+    const accSubscriptionId = getSubscriptionId();
+    if (accSubscriptionId !== subscriptionId) {
+      execSync(`az account set --subscription ${subscriptionId}`, { stdio: "pipe", shell: true });
+      console.log("Switching subscription to", `${corpName}-subscription`);
+    }
 
+    setTfVar("tenant_id", tenantId);
+    setTfVar("subscription_id", subscriptionId);
+
+    // create sso for aws account
 
     console.log("Starting Terraform initialization.");
     execSync(`terraform init`, { stdio: "pipe", shell: true, cwd: resolve(__dirname, workingDirName) });
@@ -147,10 +146,88 @@ function main(corpEnvFile) {
 }
 
 export function manual_message() {
+  console.log("\n=== Enterprise SSO creation finished ===");
+  console.log("\n=== Make sure to assign a user or a group to the Enterprise App ===");
+}
 
-  console.log("\n=== Enterprise app creation finished ===");
-  console.log("\n Configure sso on enterprise application in Azure Portal manually");   
+export function c20_post_apply_saml_save(terraformCwd) {
+  try {
+    console.log("Waiting 15 seconds before refreshing SAML metadata...");
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 15000);
 
+    const tenantId = execSync("az account show --query tenantId -o tsv", {
+      cwd: terraformCwd,
+      encoding: "utf8",
+      stdio: "pipe",
+      shell: true,
+    }).trim();
+
+    const appState = execSync("terraform state show data.azuread_application.aws_sso_corp", {
+      cwd: terraformCwd,
+      encoding: "utf8",
+      stdio: "pipe",
+      shell: true,
+    });
+
+    const appTemplateState = execSync("terraform state show azuread_application_from_template.aws_sso_corp", {
+      cwd: terraformCwd,
+      encoding: "utf8",
+      stdio: "pipe",
+      shell: true,
+    });
+
+    const samlProviderState = execSync("terraform state show aws_iam_saml_provider.entra_c", {
+      cwd: terraformCwd,
+      encoding: "utf8",
+      stdio: "pipe",
+      shell: true,
+    });
+
+    const clientIdMatch = appState.match(/^\s*client_id\s*=\s*"([^"]+)"/m);
+    const samlArnMatch = samlProviderState.match(/^\s*arn\s*=\s*"([^"]+)"/m);
+    const servicePrincipalObjectIdMatch = appTemplateState.match(/^\s*service_principal_object_id\s*=\s*"([^"]+)"/m);
+
+    const clientId = clientIdMatch?.[1];
+    const samlProviderArn = samlArnMatch?.[1];
+    const servicePrincipalObjectId = servicePrincipalObjectIdMatch?.[1];
+
+    if (!clientId || !samlProviderArn || !servicePrincipalObjectId) {
+      throw new Error("Could not resolve client_id, SAML provider ARN, or service principal object id from terraform state.");
+    }
+
+    const servicePrincipalRaw = execSync(
+      `az rest --method GET --url https://graph.microsoft.com/v1.0/servicePrincipals/${servicePrincipalObjectId}?$select=preferredTokenSigningKeyThumbprint`,
+      {
+        cwd: terraformCwd,
+        encoding: "utf8",
+        stdio: "pipe",
+        shell: true,
+      }
+    );
+    const servicePrincipal = JSON.parse(servicePrincipalRaw || "{}");
+    const expectedSigningThumbprint = (servicePrincipal.preferredTokenSigningKeyThumbprint || "").replace(/[^A-Fa-f0-9]/g, "").toUpperCase();
+
+    const federationMetadataUrl = `https://login.microsoftonline.com/${tenantId}/federationmetadata/2007-06/federationmetadata.xml?appid=${clientId}`;
+
+    console.log("Refreshing AWS SAML provider metadata from Entra federation metadata...");
+
+    execFileSync("node", [resolve(terraformCwd, "wait_metadata_ready.mjs")], {
+      cwd: terraformCwd,
+      stdio: "inherit",
+      env: {
+        ...process.env,
+        FEDERATION_METADATA_URL: federationMetadataUrl,
+        SAML_PROVIDER_ARN: samlProviderArn,
+        METADATA_PATH: resolve(terraformCwd, "federationmetadata.xml"),
+        MAX_RETRIES: "40",
+        RETRY_DELAY_SECONDS: "5",
+        MIN_SIGNING_CERTS: "1",
+        EXPECTED_SIGNING_THUMBPRINT: expectedSigningThumbprint,
+      },
+    });
+  } catch (error) {
+    console.warn("Post-apply SAML metadata refresh skipped:", error.message);
+  }
 }
 
 export { main };

@@ -129,7 +129,7 @@ function main(corpEnvFile) {
         // setTfVar("billing_account_name", env.get("BILLING_ACCOUNT_NAME"));
         // setTfVar("billing_profile_name", env.get("BILLING_PROFILE_NAME"));
         // setTfVar("invoice_section_name", env.get("INVOICE_SECTION_NAME"));
-        setTfVar("contact_emails", '["jake.vosloo@outlook.com", "LukeYeh@zenme.com.au"]'); // check if working on windows os
+        setTfVar("contact_emails", '["ryworkze@gmail.com"]'); // check if working on windows os
 
         execSync(`terraform init`, { stdio: "pipe", shell: true, cwd: resolve(__dirname, workingDirName) });
 
@@ -138,16 +138,24 @@ function main(corpEnvFile) {
 
         if (subscriptionId && subscriptionId.length > 0) {
           if (!tfStateList.includes("azurerm_subscription.payg")) {
-            const aliasId = execSync(`az account alias list --query "value[?properties.subscriptionId=='${subscriptionId}'].id" -o tsv`, {
+            // Handle case where subscriptionId might contain newlines or multiple values
+            const cleanSubscriptionId = subscriptionId.split('\n')[0].trim();
+            const aliasId = execSync(`az account alias list --query "value[?properties.subscriptionId=='${cleanSubscriptionId}'].id" -o tsv`, {
               encoding: "utf8",
               stdio: "pipe",
             }).trim();
-            console.log("Importing existing Subscription with ID:", subscriptionId);
-            execSync(`terraform import azurerm_subscription.payg ${aliasId}`, {
-              stdio: "pipe",
-              shell: true,
-              cwd: resolve(__dirname, workingDirName),
-            });
+            console.log("Found Alias ID:", aliasId || "(none - subscription may not have an alias)");
+            
+            if (aliasId && aliasId.length > 0) {
+              console.log("Importing existing Subscription with Alias ID:", aliasId);
+              execSync(`terraform import azurerm_subscription.payg ${aliasId}`, {
+                stdio: "pipe",
+                shell: true,
+                cwd: resolve(__dirname, workingDirName),
+              });
+            } else {
+              console.log("No alias found. Subscription exists in Azure but Terraform may not import it. Skipping import.");
+            }
           }
           if (!tfStateList.includes("azurerm_consumption_budget_subscription.payg_budget")) {
             const budget = execSync(`az consumption budget list --subscription ${subscriptionId} --query "[?name=='monthly-budget'].name" -o tsv`, {
