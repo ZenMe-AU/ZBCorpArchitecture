@@ -1,7 +1,17 @@
 # Externalized Configuration
 
 ## Overview
-Intent: Keep deploy-time and runtime configuration outside application code and inject values during orchestration. Problem: Multi-stage and cross-cloud workflows need environment-specific values without hardcoding secrets or tenant-specific identifiers. Trade-Offs: Externalized config improves portability but increases dependency on template consistency and variable validation. Wikipedia Reference: [Configuration management](https://en.wikipedia.org/wiki/Configuration_management).
+### Intent
+Keep deploy-time and runtime configuration outside application code and inject values during orchestration.
+
+### Problem
+Multi-stage and cross-cloud workflows need environment-specific values without hardcoding secrets or tenant-specific identifiers.
+
+### Trade-Offs
+Externalized config improves portability but increases dependency on template consistency and variable validation.
+
+### Wikipedia Reference
+[Configuration management](https://en.wikipedia.org/wiki/Configuration_management).
 
 ## Implementation
 The orchestrator reads and validates corp-level environment variables from [corpSetup/initCorpEnvDeploy.js](../../corpSetup/initCorpEnvDeploy.js#L38), then persists stage outputs for downstream steps at [corpSetup/initCorpEnvDeploy.js](../../corpSetup/initCorpEnvDeploy.js#L228).

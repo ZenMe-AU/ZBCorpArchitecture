@@ -1,7 +1,14 @@
 # Composite Pattern: Progressive Platform Bootstrap
 
 ## Overview
-Intent: Bootstrap an environment progressively from foundational subscription setup through delivery layers using staged orchestration. Problem: Multi-domain infrastructure dependencies require controlled sequencing and state handoff across stages. Trade-Offs: Progressive rollout reduces blast radius and improves diagnosability, but increases orchestration complexity and lead time.
+### Intent
+Bootstrap an environment progressively from foundational subscription setup through delivery layers using staged orchestration.
+
+### Problem
+Multi-domain infrastructure dependencies require controlled sequencing and state handoff across stages.
+
+### Trade-Offs
+Progressive rollout reduces blast radius and improves diagnosability, but increases orchestration complexity and lead time.
 
 ## Implementation
 The stage orchestrator drives sequential execution and shared lifecycle behavior in [corpSetup/initCorpEnvDeploy.js](../../corpSetup/initCorpEnvDeploy.js#L161).

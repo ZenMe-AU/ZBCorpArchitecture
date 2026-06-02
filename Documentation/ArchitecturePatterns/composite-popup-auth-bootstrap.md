@@ -1,7 +1,14 @@
 # Composite Pattern: Popup Auth Bootstrap
 
 ## Overview
-Intent: Use an isolated login application and browser messaging flow to bootstrap authentication in an edge-guarded experience. Problem: The protected edge route needs a user-friendly login initiation and completion mechanism without exposing origin internals. Trade-Offs: Popup mediation decouples login UI from guarded routes, but can be sensitive to browser popup policies and cross-window coordination.
+### Intent
+Use an isolated login application and browser messaging flow to bootstrap authentication in an edge-guarded experience.
+
+### Problem
+The protected edge route needs a user-friendly login initiation and completion mechanism without exposing origin internals.
+
+### Trade-Offs
+Popup mediation decouples login UI from guarded routes, but can be sensitive to browser popup policies and cross-window coordination.
 
 ## Implementation
 The edge login page template opens and coordinates a popup flow in [corpSetup/c25cloudfront/source/authGuardLambdaEdge/template/login.html.tpl](../../corpSetup/c25cloudfront/source/authGuardLambdaEdge/template/login.html.tpl#L108).

@@ -1,7 +1,17 @@
 # OpenID Connect
 
 ## Overview
-Intent: Authenticate users through standards-based identity metadata, token issuance, and JWT verification. Problem: The edge layer must verify user identity before allowing content access without managing its own identity store. Trade-Offs: OIDC interoperability is strong, but token validation and cookie transport choices require careful security controls. Wikipedia Reference: [OpenID Connect](https://en.wikipedia.org/wiki/OpenID_Connect).
+### Intent
+Authenticate users through standards-based identity metadata, token issuance, and JWT verification.
+
+### Problem
+The edge layer must verify user identity before allowing content access without managing its own identity store.
+
+### Trade-Offs
+OIDC interoperability is strong, but token validation and cookie transport choices require careful security controls.
+
+### Wikipedia Reference
+[OpenID Connect](https://en.wikipedia.org/wiki/OpenID_Connect).
 
 ## Implementation
 The edge guard resolves issuer metadata and validates JWT signatures and claims in [corpSetup/c25cloudfront/source/authGuardLambdaEdge/index.mjs](../../corpSetup/c25cloudfront/source/authGuardLambdaEdge/index.mjs#L9) and [corpSetup/c25cloudfront/source/authGuardLambdaEdge/index.mjs](../../corpSetup/c25cloudfront/source/authGuardLambdaEdge/index.mjs#L121).

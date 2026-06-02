@@ -1,7 +1,17 @@
 # Data-Driven Programming
 
 ## Overview
-Intent: Generate identity resources from declarative tabular inputs instead of hardcoded per-user logic. Problem: User and group onboarding must scale while staying consistent and auditable. Trade-Offs: Input-driven provisioning is flexible, but malformed data can propagate quickly without strict validation. Wikipedia Reference: [Data-driven programming](https://en.wikipedia.org/wiki/Data-driven_programming).
+### Intent
+Generate identity resources from declarative tabular inputs instead of hardcoded per-user logic.
+
+### Problem
+User and group onboarding must scale while staying consistent and auditable.
+
+### Trade-Offs
+Input-driven provisioning is flexible, but malformed data can propagate quickly without strict validation.
+
+### Wikipedia Reference
+[Data-driven programming](https://en.wikipedia.org/wiki/Data-driven_programming).
 
 ## Implementation
 User and group records are parsed and transformed from CSV into Terraform maps in [corpSetup/c07userAccounts/main.tf](../../corpSetup/c07userAccounts/main.tf#L36) and [corpSetup/c07userAccounts/main.tf](../../corpSetup/c07userAccounts/main.tf#L123).

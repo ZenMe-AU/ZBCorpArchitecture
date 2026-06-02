@@ -1,7 +1,17 @@
 # Claims-Based Identity
 
 ## Overview
-Intent: Grant access based on identity claims mapped to application roles and federation contracts. Problem: AWS role access must be derived from Entra identities with predictable claim semantics. Trade-Offs: Claims mapping centralizes authorization logic but requires careful claim contract governance across providers. Wikipedia Reference: [Claims-based identity](https://en.wikipedia.org/wiki/Claims-based_identity).
+### Intent
+Grant access based on identity claims mapped to application roles and federation contracts.
+
+### Problem
+AWS role access must be derived from Entra identities with predictable claim semantics.
+
+### Trade-Offs
+Claims mapping centralizes authorization logic but requires careful claim contract governance across providers.
+
+### Wikipedia Reference
+[Claims-based identity](https://en.wikipedia.org/wiki/Claims-based_identity).
 
 ## Implementation
 Entra group-to-app-role assignments are provisioned in [corpSetup/c21awsentrassoP2/group.tf](../../corpSetup/c21awsentrassoP2/group.tf#L9).

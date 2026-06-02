@@ -1,7 +1,17 @@
 # Adapter Pattern
 
 ## Overview
-Intent: Bridge incompatible interfaces between providers so one workflow can span cloud boundaries. Problem: Certificate issuance and DNS validation workflows require orchestration across AWS ACM and Azure DNS semantics. Trade-Offs: Adapter-style integration enables hybrid operation but increases coupling to both provider API behaviors. Wikipedia Reference: [Adapter pattern](https://en.wikipedia.org/wiki/Adapter_pattern).
+### Intent
+Bridge incompatible interfaces between providers so one workflow can span cloud boundaries.
+
+### Problem
+Certificate issuance and DNS validation workflows require orchestration across AWS ACM and Azure DNS semantics.
+
+### Trade-Offs
+Adapter-style integration enables hybrid operation but increases coupling to both provider API behaviors.
+
+### Wikipedia Reference
+[Adapter pattern](https://en.wikipedia.org/wiki/Adapter_pattern).
 
 ## Implementation
 Certificate requests are created in AWS and validated by DNS records managed in Azure in [corpSetup/c25cloudfront/main.tf](../../corpSetup/c25cloudfront/main.tf#L215), [corpSetup/c25cloudfront/main.tf](../../corpSetup/c25cloudfront/main.tf#L227), and [corpSetup/c25cloudfront/main.tf](../../corpSetup/c25cloudfront/main.tf#L247).

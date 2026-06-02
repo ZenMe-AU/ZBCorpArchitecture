@@ -1,7 +1,14 @@
 # Composite Pattern: Cross-Cloud Federation Bridge
 
 ## Overview
-Intent: Deliver federated access from Microsoft Entra into AWS by composing identity claims, metadata propagation, and provider-specific integration. Problem: Federation setup spans different identity and policy models across Azure and AWS. Trade-Offs: The bridge enables centralized identity with cloud-local authorization targets, but introduces synchronization and claim contract dependencies.
+### Intent
+Deliver federated access from Microsoft Entra into AWS by composing identity claims, metadata propagation, and provider-specific integration.
+
+### Problem
+Federation setup spans different identity and policy models across Azure and AWS.
+
+### Trade-Offs
+The bridge enables centralized identity with cloud-local authorization targets, but introduces synchronization and claim contract dependencies.
 
 ## Implementation
 The Entra enterprise app bootstrap and integration scaffolding begin in [corpSetup/c20awsentrasso/main.tf](../../corpSetup/c20awsentrasso/main.tf#L9).

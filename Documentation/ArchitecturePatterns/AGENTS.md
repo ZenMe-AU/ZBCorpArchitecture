@@ -28,8 +28,8 @@ Composite patterns have composite- at the start of the file name and do not foll
 Each pattern file should include sections in this order:
 - Title
 - Overview
-  Describe Intent, Problem, Trade-Offs (if any), and ending with a Wikipedia Reference. 
-  Composite patterns do not require a Wikipedia reference if no article is a clean match for the pattern.
+  Describe under subheadings the Intent, Problem, Trade-Offs (if any).
+  If a "pattern" end the section with a Wikipedia Reference.
 - Implementation
   Describe how the pattern is currently implemented.
   Where the pattern is implemented in different ways in different code areas, create implementation sections for each specialisation and describe the implementation for that specialisation. Include references to the code for each implementation.

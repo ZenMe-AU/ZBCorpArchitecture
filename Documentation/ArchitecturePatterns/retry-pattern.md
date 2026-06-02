@@ -1,7 +1,17 @@
 # Retry Pattern
 
 ## Overview
-Intent: Handle transient failures and eventual consistency by retrying bounded operations with controlled intervals. Problem: External identity and DNS operations may not be immediately consistent after writes. Trade-Offs: Retries improve reliability but can mask structural failures if limits and error conditions are too broad. Wikipedia Reference: [Retry pattern](https://en.wikipedia.org/wiki/Retry_pattern).
+### Intent
+Handle transient failures and eventual consistency by retrying bounded operations with controlled intervals.
+
+### Problem
+External identity and DNS operations may not be immediately consistent after writes.
+
+### Trade-Offs
+Retries improve reliability but can mask structural failures if limits and error conditions are too broad.
+
+### Wikipedia Reference
+[Retry pattern](https://en.wikipedia.org/wiki/Retry_pattern).
 
 ## Implementation
 Domain verification applies retry behavior in [corpSetup/c01subscription/domain.tf](../../corpSetup/c01subscription/domain.tf#L75).

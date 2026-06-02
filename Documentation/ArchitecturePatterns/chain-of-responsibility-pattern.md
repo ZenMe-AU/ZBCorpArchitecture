@@ -1,7 +1,17 @@
 # Chain-of-Responsibility Pattern
 
 ## Overview
-Intent: Apply request/response processing as a sequence of handlers with separated responsibilities. Problem: Edge delivery needs independent authentication and header mutation steps without merging concerns into one function. Trade-Offs: Handler separation improves clarity and evolution, but increases orchestration points and deployment artifacts. Wikipedia Reference: [Chain-of-responsibility pattern](https://en.wikipedia.org/wiki/Chain-of-responsibility_pattern).
+### Intent
+Apply request/response processing as a sequence of handlers with separated responsibilities.
+
+### Problem
+Edge delivery needs independent authentication and header mutation steps without merging concerns into one function.
+
+### Trade-Offs
+Handler separation improves clarity and evolution, but increases orchestration points and deployment artifacts.
+
+### Wikipedia Reference
+[Chain-of-responsibility pattern](https://en.wikipedia.org/wiki/Chain-of-responsibility_pattern).
 
 ## Implementation
 CloudFront behavior associates distinct Lambda@Edge functions for viewer-request and viewer-response in [corpSetup/c25cloudfront/main.tf](../../corpSetup/c25cloudfront/main.tf#L403) and [corpSetup/c25cloudfront/main.tf](../../corpSetup/c25cloudfront/main.tf#L408).

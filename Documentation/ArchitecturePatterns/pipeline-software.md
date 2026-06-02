@@ -1,7 +1,17 @@
 # Pipeline (software)
 
 ## Overview
-Intent: Execute infrastructure provisioning in ordered stages with explicit progression gates. Problem: Environment bootstrap requires deterministic ordering across subscription, identity, resource groups, and edge deployment. Trade-Offs: Strong ordering improves reliability but reduces ad hoc parallelism and can increase overall runtime. Wikipedia Reference: [Pipeline (software)](https://en.wikipedia.org/wiki/Pipeline_(software)).
+### Intent
+Execute infrastructure provisioning in ordered stages with explicit progression gates.
+
+### Problem
+Environment bootstrap requires deterministic ordering across subscription, identity, resource groups, and edge deployment.
+
+### Trade-Offs
+Strong ordering improves reliability but reduces ad hoc parallelism and can increase overall runtime.
+
+### Wikipedia Reference
+[Pipeline (software)](https://en.wikipedia.org/wiki/Pipeline_(software)).
 
 ## Implementation
 The deployment orchestrator validates and dispatches stage codes and executes a controlled sequence through stage handlers in [corpSetup/initCorpEnvDeploy.js](../../corpSetup/initCorpEnvDeploy.js#L125) and [corpSetup/initCorpEnvDeploy.js](../../corpSetup/initCorpEnvDeploy.js#L161).
