@@ -28,3 +28,26 @@ variable "contact_emails" {
   type        = list(string)
   default     = ["ryworkze@gmail.com"]
 }
+
+variable "resource_group_name" {
+  description = "The name of the resource group"
+  type        = string
+}
+
+variable "dns_name" {
+  description = "The DNS name for the environment"
+  type        = string
+}
+
+// create users — used to construct user principal names (email)
+variable "domain" {
+  type        = string
+  description = "Primary email domain for users (e.g. contoso.com) - must be registered with Entra ID"
+  default     = "ryworkzegmail.onmicrosoft.com"
+}
+
+variable "custom_domain" {
+  type        = string
+  description = "Custom domain to add to the tenant and verify"
+  default     = "z3nm3.com.au"
+}

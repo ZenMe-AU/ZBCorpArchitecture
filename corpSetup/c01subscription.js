@@ -1,5 +1,5 @@
 /**
- * @license SPDX-FileCopyrightText: © 2025 Zenme Pty Ltd <info@zenme.com.au>
+ * @license SPDX-FileCopyrightText: © 2026 Zenme Pty Ltd <info@zenme.com.au>
  * @license SPDX-License-Identifier: MIT
  */
 
@@ -91,7 +91,6 @@ const env = {
   },
 };
 
-
 function main(corpEnvFile) {
   const autoApprove = process.argv.includes("--auto-approve");
 
@@ -121,65 +120,65 @@ function main(corpEnvFile) {
     } catch {}
     console.log("tfStateList:", tfStateList);
 
-        const subscription_name = `${corpName}-subscription`;
+    const subscription_name = `${corpName}-subscription`;
 
-        // set terraform variables
-        setTfVar("subscription_name", subscription_name);
-        setTfVar("subscription_id", getSubscriptionId());
-        // setTfVar("billing_account_name", env.get("BILLING_ACCOUNT_NAME"));
-        // setTfVar("billing_profile_name", env.get("BILLING_PROFILE_NAME"));
-        // setTfVar("invoice_section_name", env.get("INVOICE_SECTION_NAME"));
-        setTfVar("contact_emails", '["ryworkze@gmail.com"]'); // check if working on windows os
+    // set terraform variables
+    setTfVar("subscription_name", subscription_name);
+    setTfVar("subscription_id", getSubscriptionId());
+    // setTfVar("billing_account_name", env.get("BILLING_ACCOUNT_NAME"));
+    // setTfVar("billing_profile_name", env.get("BILLING_PROFILE_NAME"));
+    // setTfVar("invoice_section_name", env.get("INVOICE_SECTION_NAME"));
+    setTfVar("contact_emails", '["ryworkze@gmail.com"]'); // check if working on windows os
 
-        execSync(`terraform init`, { stdio: "pipe", shell: true, cwd: resolve(__dirname, workingDirName) });
+    execSync(`terraform init`, { stdio: "pipe", shell: true, cwd: resolve(__dirname, workingDirName) });
 
-        // import existing resource
-        let subscriptionId = env.get("SUBSCRIPTION_ID") ?? getSubscriptionId(subscription_name);
+    // import existing resource
+    let subscriptionId = env.get("SUBSCRIPTION_ID") ?? getSubscriptionId(subscription_name);
 
-        if (subscriptionId && subscriptionId.length > 0) {
-          if (!tfStateList.includes("azurerm_subscription.payg")) {
-            // Handle case where subscriptionId might contain newlines or multiple values
-            const cleanSubscriptionId = subscriptionId.split('\n')[0].trim();
-            const aliasId = execSync(`az account alias list --query "value[?properties.subscriptionId=='${cleanSubscriptionId}'].id" -o tsv`, {
-              encoding: "utf8",
-              stdio: "pipe",
-            }).trim();
-            console.log("Found Alias ID:", aliasId || "(none - subscription may not have an alias)");
-            
-            if (aliasId && aliasId.length > 0) {
-              console.log("Importing existing Subscription with Alias ID:", aliasId);
-              execSync(`terraform import azurerm_subscription.payg ${aliasId}`, {
-                stdio: "pipe",
-                shell: true,
-                cwd: resolve(__dirname, workingDirName),
-              });
-            } else {
-              console.log("No alias found. Subscription exists in Azure but Terraform may not import it. Skipping import.");
-            }
-          }
-          if (!tfStateList.includes("azurerm_consumption_budget_subscription.payg_budget")) {
-            const budget = execSync(`az consumption budget list --subscription ${subscriptionId} --query "[?name=='monthly-budget'].name" -o tsv`, {
-              encoding: "utf8",
-              stdio: "pipe",
-            }).trim();
-            if (budget && budget.length > 0) {
-              console.log("Importing existing monthly-budget");
-              execSync(
-                `terraform import azurerm_consumption_budget_subscription.payg_budget /subscriptions/${subscriptionId}/providers/Microsoft.Consumption/budgets/monthly-budget`,
-                {
-                  stdio: "pipe",
-                  shell: true,
-                  cwd: resolve(__dirname, workingDirName),
-                }
-              );
-              // execSync(`terraform state show azurerm_consumption_budget_subscription.payg_budget`, {
-              //   stdio: "inherit",
-              //   shell: true,
-              //   cwd: resolve(__dirname, workingDirName),
-              // });
-            }
-          }
+    if (subscriptionId && subscriptionId.length > 0) {
+      if (!tfStateList.includes("azurerm_subscription.payg")) {
+        // Handle case where subscriptionId might contain newlines or multiple values
+        const cleanSubscriptionId = subscriptionId.split("\n")[0].trim();
+        const aliasId = execSync(`az account alias list --query "value[?properties.subscriptionId=='${cleanSubscriptionId}'].id" -o tsv`, {
+          encoding: "utf8",
+          stdio: "pipe",
+        }).trim();
+        console.log("Found Alias ID:", aliasId || "(none - subscription may not have an alias)");
+
+        if (aliasId && aliasId.length > 0) {
+          console.log("Importing existing Subscription with Alias ID:", aliasId);
+          execSync(`terraform import azurerm_subscription.payg ${aliasId}`, {
+            stdio: "pipe",
+            shell: true,
+            cwd: resolve(__dirname, workingDirName),
+          });
+        } else {
+          console.log("No alias found. Subscription exists in Azure but Terraform may not import it. Skipping import.");
         }
+      }
+      if (!tfStateList.includes("azurerm_consumption_budget_subscription.payg_budget")) {
+        const budget = execSync(`az consumption budget list --subscription ${subscriptionId} --query "[?name=='monthly-budget'].name" -o tsv`, {
+          encoding: "utf8",
+          stdio: "pipe",
+        }).trim();
+        if (budget && budget.length > 0) {
+          console.log("Importing existing monthly-budget");
+          execSync(
+            `terraform import azurerm_consumption_budget_subscription.payg_budget /subscriptions/${subscriptionId}/providers/Microsoft.Consumption/budgets/monthly-budget`,
+            {
+              stdio: "pipe",
+              shell: true,
+              cwd: resolve(__dirname, workingDirName),
+            }
+          );
+          // execSync(`terraform state show azurerm_consumption_budget_subscription.payg_budget`, {
+          //   stdio: "inherit",
+          //   shell: true,
+          //   cwd: resolve(__dirname, workingDirName),
+          // });
+        }
+      }
+    }
 
     // console.log("Starting Terraform initialization.");
     // // Run terraform
@@ -202,4 +201,4 @@ function main(corpEnvFile) {
   }
 }
 
-export { main }
+export { main };

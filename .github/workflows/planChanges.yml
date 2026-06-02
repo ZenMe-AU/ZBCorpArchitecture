@@ -315,7 +315,9 @@ jobs:
             --slurpfile stages /tmp/stages.json \
             --slurpfile cloud /tmp/cloud.json \
             --arg updatedAt "$LATEST_TS" \
+            --arg runId "${{ github.run_id }}" \
             '{
+              runId: $runId,
               updatedAt: ($updatedAt | tonumber),
               azure: $cloud[0].azure,
               aws: $cloud[0].aws,
