@@ -3,6 +3,8 @@
  * @license SPDX-License-Identifier: MIT
  */
 
+//Execute with: node initCorpEnvDeploy.js --stage c01
+
 /* This script configures the corporate environment with the relevant permissions to allow automated deployments.
  */
 import { execSync } from "child_process";
