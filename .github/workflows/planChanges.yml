@@ -31,9 +31,9 @@ jobs:
         shell: bash
         run: |
           mkdir -p $(dirname $ENV_PATH)
-          [ -n "${{ vars.NAME }}" ] && echo "NAME=${{ vars.NAME }}" >> $ENV_PATH || true
-          [ -n "${{ vars.DNS }}" ] && echo "DNS=${{ vars.DNS }}" >> $ENV_PATH || true
-          [ -n "${{ vars.SUBSCRIPTION_ID }}" ] && echo "SUBSCRIPTION_ID=${{ vars.SUBSCRIPTION_ID }}" >> $ENV_PATH || true
+          echo '${{ toJSON(vars) }}' | jq -r 'to_entries[] | "\(.key)=\(.value)"' >> $ENV_PATH
+          # key renames: GitHub var name differs from corp.env key name
+          [ -n "${{ vars.AZURE_SUBSCRIPTION_ID }}" ] && echo "SUBSCRIPTION_ID=${{ vars.AZURE_SUBSCRIPTION_ID }}" >> $ENV_PATH || true
 
       - name: Upload merged env
         uses: actions/upload-artifact@v4

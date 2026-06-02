@@ -1,3 +1,41 @@
+terraform {
+  required_providers {
+    azurerm = {
+      source  = "hashicorp/azurerm"
+      version = "~> 4.0"
+    }
+
+    msgraph = {
+      source = "microsoft/msgraph"
+    }
+  }
+  required_version = ">= 1.1.0"
+}
+
+variable "resource_group_name" {
+  description = "The name of the resource group"
+  type        = string
+}
+
+variable "dns_name" {
+  description = "The DNS name for the environment"
+  type        = string
+}
+
+// create users — used to construct user principal names (email)
+# variable "domain" {
+#   type        = string
+#   description = "Primary email domain for users (e.g. contoso.com) - must be registered with Entra ID"
+#   default     = "ryworkzegmail.onmicrosoft.com"
+# }
+
+variable "custom_domain" {
+  type        = string
+  description = "Custom domain to add to the tenant and verify"
+  default     = "z3nm3.com.au"
+}
+
+
 // Check for existing domains
 data "msgraph_resource_action" "existing_domains" {
   api_version  = "v1.0"
@@ -16,7 +54,7 @@ data "msgraph_resource_action" "custom_domain" {
   resource_url = "domains"
 
   body = { id = var.custom_domain }
-  
+
   count = !contains([for d in data.msgraph_resource_action.existing_domains.output.domains : d.id], var.custom_domain) ? 1 : 0
 }
 
@@ -28,7 +66,7 @@ data "msgraph_resource_action" "custom_domain_verify" {
   response_export_values = {
     records = "value"
   }
-  
+
   # Only verify if domain was just created
   count = !contains([for d in data.msgraph_resource_action.existing_domains.output.domains : d.id], var.custom_domain) ? 1 : 0
 
@@ -39,7 +77,7 @@ data "msgraph_resource_action" "custom_domain_verify" {
 locals {
   # Create a list of existing domain IDs
   existing_ids = [for d in data.msgraph_resource_action.existing_domains.output.domains : d.id]
-  
+
   # Determine if we need to create the record (Empty map if exists, 1-item map if missing)
   create_verify_record = contains(local.existing_ids, var.custom_domain) ? {} : { "create" = true }
 }

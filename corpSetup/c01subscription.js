@@ -81,11 +81,9 @@ const env = {
       throw new Error("Env file path is not set");
     }
 
-    const content =
-      "# if there is no subscription ID, which means no existing subscription, the script will create a new subscription under the billing account provided during c01(bootstrap) stage.\n" +
-      Object.entries(this.data)
-        .map(([key, value]) => `${key}=${value}`)
-        .join("\n");
+    const content = Object.entries(this.data)
+      .map(([key, value]) => `${key}=${value}`)
+      .join("\n");
 
     writeFileSync(this.path, content);
   },
@@ -110,6 +108,12 @@ function main(corpEnvFile) {
     if (!corpName) {
       throw new Error("NAME is not set in corp.env.");
     }
+
+    const contactEmails = env.get("CONTACT_EMAILS");
+    if (!contactEmails) {
+      throw new Error("CONTACT_EMAILS is not set in corp.env.");
+    }
+
     let tfStateList = [];
     try {
       console.log("Loading existing terraform state in :", workingDirName);
@@ -120,63 +124,36 @@ function main(corpEnvFile) {
     } catch {}
     console.log("tfStateList:", tfStateList);
 
-    const subscription_name = `${corpName}-subscription`;
+    const accSubscriptionId = getSubscriptionId();
+    const subscriptionId = env.get("SUBSCRIPTION_ID") ?? accSubscriptionId;
+
+    if (accSubscriptionId !== subscriptionId) {
+      execSync(`az account set --subscription ${subscriptionId}`, { stdio: "pipe", shell: true });
+      console.log("Switching subscription to", subscriptionId);
+    }
 
     // set terraform variables
-    setTfVar("subscription_name", subscription_name);
-    setTfVar("subscription_id", getSubscriptionId());
-    // setTfVar("billing_account_name", env.get("BILLING_ACCOUNT_NAME"));
-    // setTfVar("billing_profile_name", env.get("BILLING_PROFILE_NAME"));
-    // setTfVar("invoice_section_name", env.get("INVOICE_SECTION_NAME"));
-    setTfVar("contact_emails", '["ryworkze@gmail.com"]'); // check if working on windows os
+    setTfVar("subscription_id", subscriptionId);
+    setTfVar("contact_emails", contactEmails);
 
     execSync(`terraform init`, { stdio: "pipe", shell: true, cwd: resolve(__dirname, workingDirName) });
 
-    // import existing resource
-    let subscriptionId = env.get("SUBSCRIPTION_ID") ?? getSubscriptionId(subscription_name);
-
-    if (subscriptionId && subscriptionId.length > 0) {
-      if (!tfStateList.includes("azurerm_subscription.payg")) {
-        // Handle case where subscriptionId might contain newlines or multiple values
-        const cleanSubscriptionId = subscriptionId.split("\n")[0].trim();
-        const aliasId = execSync(`az account alias list --query "value[?properties.subscriptionId=='${cleanSubscriptionId}'].id" -o tsv`, {
-          encoding: "utf8",
-          stdio: "pipe",
-        }).trim();
-        console.log("Found Alias ID:", aliasId || "(none - subscription may not have an alias)");
-
-        if (aliasId && aliasId.length > 0) {
-          console.log("Importing existing Subscription with Alias ID:", aliasId);
-          execSync(`terraform import azurerm_subscription.payg ${aliasId}`, {
+    // import existing resources
+    if (!tfStateList.includes("azurerm_consumption_budget_subscription.payg_budget")) {
+      const budget = execSync(`az consumption budget list --subscription ${subscriptionId} --query "[?name=='monthly-budget'].name" -o tsv`, {
+        encoding: "utf8",
+        stdio: "pipe",
+      }).trim();
+      if (budget) {
+        console.log("Importing existing monthly-budget");
+        execSync(
+          `terraform import azurerm_consumption_budget_subscription.payg_budget /subscriptions/${subscriptionId}/providers/Microsoft.Consumption/budgets/monthly-budget`,
+          {
             stdio: "pipe",
             shell: true,
             cwd: resolve(__dirname, workingDirName),
-          });
-        } else {
-          console.log("No alias found. Subscription exists in Azure but Terraform may not import it. Skipping import.");
-        }
-      }
-      if (!tfStateList.includes("azurerm_consumption_budget_subscription.payg_budget")) {
-        const budget = execSync(`az consumption budget list --subscription ${subscriptionId} --query "[?name=='monthly-budget'].name" -o tsv`, {
-          encoding: "utf8",
-          stdio: "pipe",
-        }).trim();
-        if (budget && budget.length > 0) {
-          console.log("Importing existing monthly-budget");
-          execSync(
-            `terraform import azurerm_consumption_budget_subscription.payg_budget /subscriptions/${subscriptionId}/providers/Microsoft.Consumption/budgets/monthly-budget`,
-            {
-              stdio: "pipe",
-              shell: true,
-              cwd: resolve(__dirname, workingDirName),
-            }
-          );
-          // execSync(`terraform state show azurerm_consumption_budget_subscription.payg_budget`, {
-          //   stdio: "inherit",
-          //   shell: true,
-          //   cwd: resolve(__dirname, workingDirName),
-          // });
-        }
+          }
+        );
       }
     }
 
