@@ -102,6 +102,7 @@ jobs:
               run: cat /tmp/tf_output.txt
 
             - name: Upload deploy log
+              id: upload_log
               if: always()
               uses: actions/upload-artifact@v4
               with:
@@ -114,17 +115,23 @@ jobs:
               shell: bash
               run: |
                   TS=$(date +%s)
-                  STATUS=${{ steps.tf_apply.outcome == 'success' && '"deployed"' || '"deploy_failed"' }}
+                  STATUS=${{ steps.tf_apply.outcome == 'success' && '"success"' || '"failed"' }}
+                  LOG_ID="${{ steps.upload_log.outputs.artifact-id }}"
+                  LOG_URL="${{ steps.upload_log.outputs.artifact-url }}"
 
                   jq \
                     --arg dir "${{ inputs.dir }}" \
                     --arg status "$STATUS" \
                     --arg deployRunId "${{ github.run_id }}" \
                     --argjson deployedAt "$TS" \
+                    --argjson deployLogId "${LOG_ID:-null}" \
+                    --arg deployLogUrl "$LOG_URL" \
                     '.stages = [.stages[] | if .name == $dir then . + {
                       deployStatus: $status,
                       deployRunId: $deployRunId,
-                      deployedAt: $deployedAt
+                      deployedAt: $deployedAt,
+                      deployLogId: $deployLogId,
+                      deployLogUrl: (if $deployLogUrl == "" then null else $deployLogUrl end)
                     } else . end]' $DEPLOYMENT_CHANGESET_PATH > /tmp/updated_changeset.json
 
                   mv /tmp/updated_changeset.json $DEPLOYMENT_CHANGESET_PATH
