@@ -330,8 +330,11 @@ jobs:
 
       - name: Commit results
         run: |
-          git config user.name "z3ninstall3r github actions"
-          git config user.email "z3ninstall3r_github_actions@z3ninstall3r.com"
+          _NAME="${{ vars.NAME }}"
+          GIT_NAME="${_NAME:+$_NAME }github actions"
+          GIT_EMAIL="${GIT_NAME// /_}@${{ vars.DNS }}"
+          git config user.name "$GIT_NAME"
+          git config user.email "$GIT_EMAIL"
 
           # commit local changes if any
           git add corpSetup
