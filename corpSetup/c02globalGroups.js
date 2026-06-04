@@ -178,12 +178,14 @@ function main(corpEnvFile) {
           `az role assignment list --assignee "${rgDeployerId}" --role "Owner" --scope /subscriptions/${subscriptionId} --query "[0].id" -o tsv`,
           { encoding: "utf8" }
         ).trim();
-        console.log("Importing existing ResourceGroupDeployer Owner role assignment.");
-        execSync(`terraform import azurerm_role_assignment.resource_group_deployer_owner ${ownerRoleAssignmentId}`, {
-          stdio: "pipe",
-          shell: true,
-          cwd: resolve(__dirname, workingDirName),
-        });
+        if (ownerRoleAssignmentId) {
+          console.log("Importing existing ResourceGroupDeployer Owner role assignment.");
+          execSync(`terraform import azurerm_role_assignment.resource_group_deployer_owner ${ownerRoleAssignmentId}`, {
+            stdio: "pipe",
+            shell: true,
+            cwd: resolve(__dirname, workingDirName),
+          });
+        }
       }
     }
     if (leadDevId && !tfStateList.includes("azuread_group.lead_developer")) {
