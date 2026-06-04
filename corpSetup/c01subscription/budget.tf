@@ -19,4 +19,8 @@ resource "azurerm_consumption_budget_subscription" "payg_budget" {
     operator       = "EqualTo"
     contact_emails = split(",", var.contact_emails)
   }
+
+  lifecycle {
+    ignore_changes = [time_period]
+  }
 }
