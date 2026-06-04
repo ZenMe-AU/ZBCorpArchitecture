@@ -311,14 +311,22 @@ jobs:
           EOF
 
           # final output
+          ENV_ID=$(echo "$ARTIFACT_LIST" | jq -r --arg name "${{ env.ENV_ARTIFACT_NAME }}" '.artifacts[]? | select(.name==$name) | .id')
+          ENV_URL=$(echo "$ARTIFACT_LIST" | jq -r --arg name "${{ env.ENV_ARTIFACT_NAME }}" '.artifacts[]? | select(.name==$name) | .archive_download_url')
+          [ -z "$ENV_ID" ] && ENV_ID=null
+
           jq -n \
             --slurpfile stages /tmp/stages.json \
             --slurpfile cloud /tmp/cloud.json \
             --arg updatedAt "$LATEST_TS" \
             --arg runId "${{ github.run_id }}" \
+            --argjson envId "$ENV_ID" \
+            --arg envUrl "$ENV_URL" \
             '{
               runId: $runId,
               updatedAt: ($updatedAt | tonumber),
+              envId: $envId,
+              envUrl: (if $envUrl == "" then null else $envUrl end),
               azure: $cloud[0].azure,
               aws: $cloud[0].aws,
               stages: $stages[0]
