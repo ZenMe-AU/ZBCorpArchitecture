@@ -1,5 +1,5 @@
 /**
- * @license SPDX-FileCopyrightText: © 2025 Zenme Pty Ltd <info@zenme.com.au>
+ * @license SPDX-FileCopyrightText: © 2026 Zenme Pty Ltd <info@zenme.com.au>
  * @license SPDX-License-Identifier: MIT
  */
 
@@ -135,7 +135,9 @@ function main(corpEnvFile) {
         .split("\n")
         .map((s) => s.trim())
         .filter(Boolean);
-    } catch {}
+    } catch {
+      /* ignore */
+    }
     console.log("tfStateList:", tfStateList);
 
     const subscriptionId = env.get("SUBSCRIPTION_ID");
@@ -173,7 +175,9 @@ function main(corpEnvFile) {
           encoding: "utf8",
           stdio: "pipe",
         }).trim();
-      } catch {}
+      } catch {
+        /* ignore */
+      }
       if (isExisting) {
         console.log("Importing existing Resource Group:", resourceGroupName);
         execSync(`terraform import azurerm_resource_group.root_rg /subscriptions/${subscriptionId}/resourceGroups/${resourceGroupName}`, {
@@ -195,7 +199,9 @@ function main(corpEnvFile) {
             shell: true,
           }
         ).trim();
-      } catch {}
+      } catch {
+        /* ignore */
+      }
       if (isExisting) {
         console.log("Importing existing Log Analytics Workspace:", logAnalyticsWorkspaceName);
         execSync(
@@ -236,7 +242,9 @@ function main(corpEnvFile) {
           stdio: "pipe",
           shell: true,
         }).trim();
-      } catch {}
+      } catch {
+        /* ignore */
+      }
       if (isExisting) {
         console.log("Importing existing DNS Zone:", dnsName);
         execSync(
@@ -307,7 +315,9 @@ function main(corpEnvFile) {
         if (output && output !== "null") {
           isExisting = true;
         }
-      } catch {}
+      } catch {
+        /* ignore */
+      }
       if (isExisting) {
         console.log("Importing existing Application Insights: ", appInsightsName);
         execSync(
@@ -318,6 +328,27 @@ function main(corpEnvFile) {
             cwd: resolve(__dirname, workingDirName),
           }
         );
+      }
+    }
+
+    if (!tfStateList.includes("azurerm_dns_txt_record.verify")) {
+      let txtRecordId = null;
+      try {
+        txtRecordId =
+          execSync(`az network dns record-set txt show --subscription ${subscriptionId} -g ${resourceGroupName} -z ${dnsName} -n "@" --query id -o tsv`, {
+            encoding: "utf8",
+            stdio: ["pipe", "pipe", "pipe"],
+          }).trim() || null;
+      } catch {
+        /* ignore */
+      }
+      if (txtRecordId) {
+        console.log("Importing existing DNS TXT record for domain verification.");
+        execSync(`terraform import azurerm_dns_txt_record.verify "${txtRecordId}"`, {
+          stdio: "pipe",
+          shell: true,
+          cwd: resolve(__dirname, workingDirName),
+        });
       }
     }
 
