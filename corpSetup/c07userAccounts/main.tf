@@ -1,29 +1,16 @@
-// TODOs for this module:
-// - [x] Add groups from groups.csv
-// - [x] Load users.csv
-// - [x] Create users (upn is unique identifier)
-// - [x] Add users to groups
-// - [x] Add users to eligible roles (requires Graph / elevated privileges)
-// - [x - SamAccountName] add other properties to users (e.g. SamAccountName, PrimaryEmail, OtherEmail) from users.csv
-// - [x] Enable Passkey (FIDO2) for users (requires Graph / admin action)
-// - [x] Create 1-day temporary access passes for all users
-// - [x] Output Apass.csv with each user's display name, email, and temporary access pass details
-//         (the pass is returned by Graph on create, so it is still present in Terraform state)
-
-variable "dns_name" {
-  description = "The DNS name for the environment"
-  type        = string
-}
+// roles needed: 
+// Policy.ReadWrite.AuthenticationMethod
+// UserAuthenticationMethod.ReadWrite.All
+// RoleManagement.ReadWrite.Directory
+// User.ReadWrite.All
+// GroupMember.ReadWrite.All
+// Group.ReadWrite.All
 
 // check if domain is verified and is the root domain (default domain)
 data "azuread_domains" "primary" {
   only_default = true
 }
 
-locals {
-  primary_domain     = data.azuread_domains.primary.domains[0].domain_name
-  domain_is_primary  = local.primary_domain == var.dns_name
-}
 
 resource "msgraph_update_resource" "enable_fido2" {
   url         = "policies/authenticationMethodsPolicy/authenticationMethodConfigurations/Fido2"
@@ -80,33 +67,11 @@ locals {
   ])
 }
 
-// Add groups from groups.csv
-resource "azuread_group" "security_groups" {
-  for_each = { for group in local.groups_csv : group.GroupName => group }
 
-  display_name     = each.value.GroupName
-  description      = each.value.Description
-  security_enabled = true
-  mail_enabled     = false
-  assignable_to_role = false
-}
 
-// Create users — generates initial passwords for new users
-resource "random_password" "user_passwords" {
-  for_each = local.users_to_create
 
-  length           = 16
-  special          = true
-  override_special = "!@#$%&*()-_+=<>?"
-}
 
-# Fetch existing Entra users for only the UPNs we care about
-data "azuread_users" "existing" {
-  count = length(local.target_upns) > 0 ? 1 : 0
 
-  user_principal_names = local.target_upns
-  ignore_missing       = true
-}
 
 locals {
   # Existing users that match our target UPNs
@@ -157,138 +122,3 @@ locals {
   }
 }
 
-// Create users (azuread_user resources)
-resource "azuread_user" "users" {
-  for_each = local.users_to_create
-
-  user_principal_name     = each.value.Upn
-  display_name            = each.value.DisplayName
-  given_name              = each.value.Name
-  surname                 = each.value.LastName
-  country                 = each.value.Location
-  # sam_account_name        = each.value.SamAccountName
-  mail_nickname           = replace(lower("${each.value.Name}${each.value.LastName}"), " ", "")
-  account_enabled         = true
-  mail                    = each.value.PrimaryEmail
-  other_mails             = [for email in [for e in split(",", each.value.OtherEmail) : trimspace(e) if trimspace(e) != ""] : email]
-
-  password                = random_password.user_passwords[each.key].result
-  force_password_change   = false #TODO: change to true after demonstration
-
-  lifecycle {
-    precondition {
-      condition     = local.domain_is_primary
-      error_message = "${var.dns_name} is not the primary domain in this tenant."
-    }
-  }
-}
-
-// Add users to groups (azuread_group_member resources)
-resource "azuread_group_member" "membership" {
-  for_each = { for m in local.user_memberships : "${m.upn}__${m.group}" => m }
-
-  group_object_id  = azuread_group.security_groups[each.value.group].object_id
-  member_object_id = local.all_user_object_ids[each.value.upn]
-}
-
-// Add groups to groups (child group memberships in parent groups)
-resource "azuread_group_member" "group_membership" {
-  for_each = { for m in local.group_memberships : "${m.child_group}__${m.parent_group}" => m }
-
-  group_object_id  = azuread_group.security_groups[each.value.parent_group].object_id
-  member_object_id = azuread_group.security_groups[each.value.child_group].object_id
-}
-
-// Note: this is under the assumption that all display names in users.csv are unique. In production, you'd want a more reliable key (e.g. email or a dedicated username column) to avoid ambiguity.
-// This data source fetches all available role templates (e.g., "Global Administrator", "User Administrator") 
-data "azuread_directory_role_templates" "eligible_roles" {
-}
-
-// Note: This requires elevated permissions (e.g. User Access Administrator) to manage role assignments in Entra ID
-// Creates eligible role assignments
-resource "azuread_directory_role_assignment" "eligible_roles" {
-  for_each = {
-    for a in local.eligible_role_assignments :
-    "${a.upn}__${replace(lower(a.role_name), " ", "_")}" => a
-  }
-
-  role_id             = local.eligible_role_template_object_ids[each.value.role_name]
-  principal_object_id = local.all_user_object_ids[each.value.upn]
-}
-
-resource "msgraph_resource_action" "temporary_access_pass" {
-  for_each = local.temporary_access_pass_users
-
-  api_version  = "v1.0"
-  method       = "POST"
-  resource_url = "users/${each.key}/authentication/temporaryAccessPassMethods"
-
-  body = {
-    isUsableOnce      = true
-    lifetimeInMinutes = 480
-  }
-
-  response_export_values = {
-    temporary_access_pass = "temporaryAccessPass"
-    id                    = "id"
-    created_date_time     = "createdDateTime"
-    start_date_time       = "startDateTime"
-    lifetime_in_minutes   = "lifetimeInMinutes"
-    is_usable_once        = "isUsableOnce"
-    is_usable             = "isUsable"
-    usability_reason      = "methodUsabilityReason"
-  }
-
-  depends_on = [
-    azuread_user.users
-  ]
-}
-
-locals {
-  temporary_access_pass_rows = [
-    for upn, user in local.temporary_access_pass_users : {
-      display_name = trimspace(user.DisplayName)
-      upn        = trimspace(user.Upn)
-      access_pass_code = msgraph_resource_action.temporary_access_pass[upn].output.temporary_access_pass
-    }
-  ]
-}
-
-resource "local_file" "apass_csv" {
-  filename = "${path.module}/Apass.csv"
-
-  content = join("\n", concat(
-    ["display_name,upn,access_pass_code"],
-    [
-      for row in local.temporary_access_pass_rows : format(
-        "\"%s\",\"%s\",\"%s\"",
-        replace(row.display_name, "\"", "\"\""),
-        replace(row.upn, "\"", "\"\""),
-        replace(row.access_pass_code, "\"", "\"\"")
-      )
-    ]
-  ))
-
-  depends_on = [msgraph_resource_action.temporary_access_pass]
-}
-
-// Output: list of eligible role assignments created (or already existing) for users
-output "eligible_role_assignment_details" {
-  value = [
-    for a in local.eligible_role_assignments :
-    "Assigned role '${a.role_name}' to user '${a.display_name}'"
-  ]
-}
-
-
-// Output: list of created users (helps verify user creation)
-output "created_users" {
-  value = {
-    for k, u in azuread_user.users : k => {
-      user_principal_name = u.user_principal_name
-      object_id           = u.object_id
-      password            = random_password.user_passwords[k].result
-    }
-  }
-  sensitive = true
-}

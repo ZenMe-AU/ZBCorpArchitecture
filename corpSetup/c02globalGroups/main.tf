@@ -1,3 +1,7 @@
+// roles needed:
+// GroupMember.ReadWrite.All
+// Group.ReadWrite.All
+
 #This script generates the users, groups and configuration required to allow automated least privileged deployments of environments.
 
 # Create ResourceGroupDeployer Entra security group

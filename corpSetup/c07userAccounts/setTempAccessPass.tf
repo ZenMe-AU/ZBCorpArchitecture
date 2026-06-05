@@ -1,0 +1,56 @@
+// Create temporary access pass for users
+resource "msgraph_resource_action" "temporary_access_pass" {
+  for_each = local.temporary_access_pass_users
+
+  api_version  = "v1.0"
+  method       = "POST"
+  resource_url = "users/${each.key}/authentication/temporaryAccessPassMethods"
+
+  body = {
+    isUsableOnce      = true
+    lifetimeInMinutes = 480
+  }
+
+  response_export_values = {
+    temporary_access_pass = "temporaryAccessPass"
+    id                    = "id"
+    created_date_time     = "createdDateTime"
+    start_date_time       = "startDateTime"
+    lifetime_in_minutes   = "lifetimeInMinutes"
+    is_usable_once        = "isUsableOnce"
+    is_usable             = "isUsable"
+    usability_reason      = "methodUsabilityReason"
+  }
+
+  depends_on = [
+    azuread_user.users
+  ]
+}
+
+locals {
+  temporary_access_pass_rows = [
+    for upn, user in local.temporary_access_pass_users : {
+      display_name = trimspace(user.DisplayName)
+      upn        = trimspace(user.Upn)
+      access_pass_code = msgraph_resource_action.temporary_access_pass[upn].output.temporary_access_pass
+    }
+  ]
+}
+
+resource "local_file" "apass_csv" {
+  filename = "${path.module}/Apass.csv"
+
+  content = join("\n", concat(
+    ["display_name,upn,access_pass_code"],
+    [
+      for row in local.temporary_access_pass_rows : format(
+        "\"%s\",\"%s\",\"%s\"",
+        replace(row.display_name, "\"", "\"\""),
+        replace(row.upn, "\"", "\"\""),
+        replace(row.access_pass_code, "\"", "\"\"")
+      )
+    ]
+  ))
+
+  depends_on = [msgraph_resource_action.temporary_access_pass]
+}

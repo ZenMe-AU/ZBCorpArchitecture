@@ -1,3 +1,6 @@
+// roles needed:
+// Application.ReadWrite.All
+
 //Create the resources to make sso inside on entra possible with aws
 
 # Use the AWS gallery template so the enterprise app is created as

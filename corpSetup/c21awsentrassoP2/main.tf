@@ -1,3 +1,7 @@
+// roles needed:
+// AppRoleAssignment.ReadWrite.All
+// Policy.ReadWrite.ApplicationConfiguration
+
 data "azuread_application" "aws_sso_corp" {
   display_name = var.app_name
 }

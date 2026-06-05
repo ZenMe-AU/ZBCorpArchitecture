@@ -1,4 +1,7 @@
 
+// roles needed:
+// Application.ReadWrite.All
+
 # locals {
 #   login_uri = "login.${var.dns_name}"
 # }
