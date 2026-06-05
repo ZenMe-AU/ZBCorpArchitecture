@@ -22,3 +22,8 @@ variable "tenant_id" {
   description = "The tenant ID of the Azure AD application used for authentication"
   type        = string
 }
+
+variable "dns_name" {
+  description = "The DNS name for the environment"
+  type        = string
+}
