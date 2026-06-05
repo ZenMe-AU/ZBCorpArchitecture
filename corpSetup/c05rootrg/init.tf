@@ -5,7 +5,8 @@ terraform {
       version = "~> 4.0"
     }
     msgraph = {
-      source = "microsoft/msgraph"
+      source  = "microsoft/msgraph"
+      version = "~> 0.3"
     }
   }
   required_version = ">= 1.1.0"
@@ -15,3 +16,5 @@ provider "azurerm" {
   features {}
   subscription_id = var.subscription_id
 }
+
+provider "msgraph" {}

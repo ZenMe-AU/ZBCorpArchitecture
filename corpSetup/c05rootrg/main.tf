@@ -2,8 +2,8 @@
 
 # create azurerm_resource_group and
 resource "azurerm_resource_group" "root_rg" {
-    name     = var.resource_group_name
-    location = var.location
+  name     = var.resource_group_name
+  location = var.location
 }
 
 # Configure log analytics
@@ -44,6 +44,10 @@ resource "azurerm_dns_zone" "dns_zone" {
   resource_group_name = azurerm_resource_group.root_rg.name
 }
 
+output "dns_zone_name_servers" {
+  value = azurerm_dns_zone.dns_zone.name_servers
+}
+
 resource "azurerm_storage_account" "sa" {
   name                     = var.storage_account_name
   resource_group_name      = azurerm_resource_group.root_rg.name
@@ -57,3 +61,4 @@ resource "azurerm_storage_container" "tfstate_container" {
   storage_account_id    = azurerm_storage_account.sa.id
   container_access_type = "private"
 }
+
