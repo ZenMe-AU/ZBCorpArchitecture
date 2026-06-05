@@ -4,6 +4,9 @@ terraform {
       source  = "hashicorp/azurerm"
       version = "~> 4.0"
     }
+    msgraph = {
+      source = "microsoft/msgraph"
+    }
   }
   required_version = ">= 1.1.0"
 }
