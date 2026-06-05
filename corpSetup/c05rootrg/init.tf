@@ -8,6 +8,10 @@ terraform {
       source  = "microsoft/msgraph"
       version = "~> 0.3"
     }
+    azuread = {
+      source  = "hashicorp/azuread"
+      version = "~> 3.0"
+    }
   }
   required_version = ">= 1.1.0"
 }
@@ -18,3 +22,5 @@ provider "azurerm" {
 }
 
 provider "msgraph" {}
+
+provider "azuread" {}
