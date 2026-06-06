@@ -109,20 +109,21 @@ runs:
         name: ${{ inputs.dir }}-tfplan
         path: corpSetup/${{ inputs.dir }}/${{ inputs.binary_plan_file }}
 
-    - name: Upload artifacts (dist)
-      if: steps.run.outcome == 'success'
-      uses: actions/upload-artifact@v4
-      with:
-        if-no-files-found: ignore
-        name: ${{ inputs.dir }}-dist
-        path: |
-          corpSetup/${{ inputs.dir }}/**/dist/**
-          corpSetup/${{ inputs.dir }}/**/*.zip
+    # - name: Upload artifacts (dist)
+    #   if: steps.run.outcome == 'success'
+    #   uses: actions/upload-artifact@v4
+    #   with:
+    #     if-no-files-found: ignore
+    #     name: ${{ inputs.dir }}-dist
+    #     path: |
+    #       corpSetup/${{ inputs.dir }}/**/dist/**
+    #       corpSetup/${{ inputs.dir }}/**/*.zip
 
     - name: Upload artifacts (pkg)
       if: steps.run.outcome == 'success'
       uses: actions/upload-artifact@v4
       with:
         if-no-files-found: ignore
+        include-hidden-files: true
         name: ${{ inputs.dir }}-pkg
         path: corpSetup/${{ inputs.dir }}/
