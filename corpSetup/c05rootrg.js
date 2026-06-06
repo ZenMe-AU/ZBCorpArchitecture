@@ -338,7 +338,9 @@ function main(corpEnvFile) {
           execSync(`az network dns record-set txt show --subscription ${subscriptionId} -g ${resourceGroupName} -z ${dnsName} -n "@" --query id -o tsv`, {
             encoding: "utf8",
             stdio: ["pipe", "pipe", "pipe"],
-          }).trim() || null;
+          })
+            .trim()
+            .replace(/\/dnszones\//i, "/dnsZones/") || null;
       } catch {
         /* ignore */
       }
