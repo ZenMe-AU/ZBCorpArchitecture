@@ -206,6 +206,59 @@ function main(corpEnvFile) {
     execSync(`pnpm run build`, { stdio: "inherit", shell: true, cwd: lambdaEdgeAuthGuardSourceFolder });
     // rewriteHeaderLambdaEdge has no build step — terraform archive_file zips it directly
 
+    // import existing ACM certificate (cf) — must be in state before plan so domain_validation_options is known
+    if (!tfStateList.includes("aws_acm_certificate.cf")) {
+      let cfCertArn = null;
+      try {
+        cfCertArn =
+          execSync(`aws acm list-certificates --region us-east-1 --query "CertificateSummaryList[?DomainName=='${dnsName}'].CertificateArn" --output text`, {
+            encoding: "utf8",
+            stdio: "pipe",
+            shell: true,
+          }).trim() || null;
+      } catch {
+        /* ignore */
+      }
+      if (cfCertArn) {
+        console.log("Importing aws_acm_certificate.cf");
+        try {
+          execSync(`terraform import aws_acm_certificate.cf "${cfCertArn}"`, {
+            stdio: "pipe",
+            shell: true,
+            cwd: workingDirPath,
+          });
+        } catch (err) {
+          console.warn("Import aws_acm_certificate.cf failed:", err.message);
+        }
+      }
+    }
+
+    // import existing ACM certificate (cf_prod)
+    if (!tfStateList.includes("aws_acm_certificate.cf_prod")) {
+      let cfProdCertArn = null;
+      try {
+        cfProdCertArn =
+          execSync(
+            `aws acm list-certificates --region us-east-1 --query "CertificateSummaryList[?DomainName=='prod.${dnsName}'].CertificateArn" --output text`,
+            { encoding: "utf8", stdio: "pipe", shell: true }
+          ).trim() || null;
+      } catch {
+        /* ignore */
+      }
+      if (cfProdCertArn) {
+        console.log("Importing aws_acm_certificate.cf_prod");
+        try {
+          execSync(`terraform import aws_acm_certificate.cf_prod "${cfProdCertArn}"`, {
+            stdio: "pipe",
+            shell: true,
+            cwd: workingDirPath,
+          });
+        } catch (err) {
+          console.warn("Import aws_acm_certificate.cf_prod failed:", err.message);
+        }
+      }
+    }
+
     // import existing CloudFront cache policy
     if (!tfStateList.includes("aws_cloudfront_cache_policy.html_no_cache")) {
       let cachePolicyId = null;
