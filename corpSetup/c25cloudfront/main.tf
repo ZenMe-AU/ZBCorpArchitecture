@@ -2,9 +2,16 @@
 // roles needed:
 // Application.ReadWrite.All
 
-# locals {
-#   login_uri = "login.${var.dns_name}"
-# }
+locals {
+  # login_uri = "login.${var.dns_name}"
+
+  # Use path.module so paths resolve correctly regardless of where terraform runs
+  # (corpSetup/c25cloudfront/ during plan, stage/ during deploy)
+  bucket_static_website_source_folder      = "${path.module}/${var.bucket_static_website_source_folder}"
+  bucket_spa_source_folder                 = "${path.module}/${var.bucket_spa_source_folder}"
+  lambda_edge_auth_guard_source_folder     = "${path.module}/${var.lambda_edge_auth_guard_source_folder}"
+  lambda_edge_rewrite_header_source_folder = "${path.module}/${var.lambda_edge_rewrite_header_source_folder}"
+}
 
 resource "azuread_application" "msal_spa" {
   display_name = var.app_registration_name
@@ -28,29 +35,29 @@ resource "azuread_application" "msal_spa" {
 }
 
 resource "local_file" "config_js" {
-  filename = "${var.bucket_spa_source_folder}/config.js"
+  filename = "${local.bucket_spa_source_folder}/config.js"
 
-  content = templatefile("${var.bucket_spa_source_folder}/template/config.js.tpl", {
-    tenant_id = var.tenant_id
-    client_id = azuread_application.msal_spa.client_id
+  content = templatefile("${local.bucket_spa_source_folder}/template/config.js.tpl", {
+    tenant_id    = var.tenant_id
+    client_id    = azuread_application.msal_spa.client_id
     redirect_uri = "https://login.${var.dns_name}/"
-    domain_name = var.dns_name
+    domain_name  = var.dns_name
   })
 }
 
 resource "local_file" "guard_config" {
-  filename = "${var.lambda_edge_auth_guard_source_folder}/dist/config.mjs"
+  filename = "${local.lambda_edge_auth_guard_source_folder}/dist/config.mjs"
 
-  content = templatefile("${var.lambda_edge_auth_guard_source_folder}/template/config.js.tpl", {
-    client_id = azuread_application.msal_spa.client_id
-    tenant_id = var.tenant_id
+  content = templatefile("${local.lambda_edge_auth_guard_source_folder}/template/config.js.tpl", {
+    client_id   = azuread_application.msal_spa.client_id
+    tenant_id   = var.tenant_id
     auth_domain = "https://login.${var.dns_name}/"
   })
 }
 resource "local_file" "guard_html" {
-  filename = "${var.lambda_edge_auth_guard_source_folder}/dist/login.html"
+  filename = "${local.lambda_edge_auth_guard_source_folder}/dist/login.html"
 
-  content = templatefile("${var.lambda_edge_auth_guard_source_folder}/template/login.html.tpl", {
+  content = templatefile("${local.lambda_edge_auth_guard_source_folder}/template/login.html.tpl", {
     auth_domain = "https://login.${var.dns_name}/"
   })
 }
@@ -78,7 +85,7 @@ resource "aws_s3_bucket" "spa" {
 resource "aws_s3_object" "unavailable_page" {
   bucket       = aws_s3_bucket.static_website.id
   key          = "unavailable.html"
-  source       = "${var.bucket_static_website_source_folder}/unavailable.html"
+  source       = "${local.bucket_static_website_source_folder}/unavailable.html"
   content_type = "text/html"
 }
 
@@ -102,12 +109,12 @@ resource "aws_s3_object" "spa_config" {
 }
 
 resource "aws_s3_object" "spa_files" {
-  for_each = fileset("${var.bucket_spa_source_folder}/dist", "**/*")
+  for_each = fileset("${local.bucket_spa_source_folder}/dist", "**/*")
 
   bucket = aws_s3_bucket.spa.id
   key    = each.value
-  source = "${var.bucket_spa_source_folder}/dist/${each.value}"
-  etag   = filemd5("${var.bucket_spa_source_folder}/dist/${each.value}")
+  source = "${local.bucket_spa_source_folder}/dist/${each.value}"
+  etag   = filemd5("${local.bucket_spa_source_folder}/dist/${each.value}")
 
   content_type = lookup(
     local.mime_types,
@@ -121,7 +128,7 @@ data "aws_iam_policy_document" "lambda_edge_assume_role" {
     effect = "Allow"
 
     principals {
-      type        = "Service"
+      type = "Service"
       identifiers = [
         "lambda.amazonaws.com",
         "edgelambda.amazonaws.com"
@@ -132,7 +139,7 @@ data "aws_iam_policy_document" "lambda_edge_assume_role" {
 }
 
 resource "aws_iam_role" "lambda_edge_auth_guard" {
-  name = var.lambda_edge_auth_guard_role
+  name               = var.lambda_edge_auth_guard_role
   assume_role_policy = data.aws_iam_policy_document.lambda_edge_assume_role.json
 }
 
@@ -148,12 +155,12 @@ resource "aws_cloudwatch_log_group" "lambda_edge_auth_guard_logs" {
 
 data "archive_file" "edge_zip" {
   type        = "zip"
-  source_dir  = "${var.lambda_edge_auth_guard_source_folder}/dist"
-  output_path = "${var.lambda_edge_auth_guard_source_folder}/lambda.zip"
+  source_dir  = "${local.lambda_edge_auth_guard_source_folder}/dist"
+  output_path = "${local.lambda_edge_auth_guard_source_folder}/lambda.zip"
 
   excludes = ["lambda.zip"]
 
-  depends_on = [ local_file.guard_config, local_file.guard_html ]
+  depends_on = [local_file.guard_config, local_file.guard_html]
 }
 
 resource "aws_lambda_function" "viewer_request" {
@@ -162,9 +169,9 @@ resource "aws_lambda_function" "viewer_request" {
   handler       = "index.handler"
   runtime       = "nodejs22.x"
 
-  filename = data.archive_file.edge_zip.output_path
+  filename         = data.archive_file.edge_zip.output_path
   source_code_hash = data.archive_file.edge_zip.output_base64sha256
-  publish = true
+  publish          = true
 
   depends_on = [
     aws_iam_role_policy_attachment.lambda_edge_auth_guard_policy,
@@ -173,7 +180,7 @@ resource "aws_lambda_function" "viewer_request" {
 }
 
 resource "aws_iam_role" "lambda_edge_rewrite_header" {
-  name = var.lambda_edge_rewrite_header_role
+  name               = var.lambda_edge_rewrite_header_role
   assume_role_policy = data.aws_iam_policy_document.lambda_edge_assume_role.json
 }
 
@@ -189,8 +196,8 @@ resource "aws_cloudwatch_log_group" "lambda_edge_rewrite_header_logs" {
 
 data "archive_file" "rewrite_header_zip" {
   type        = "zip"
-  source_dir  = "${var.lambda_edge_rewrite_header_source_folder}"
-  output_path = "${var.lambda_edge_rewrite_header_source_folder}/lambda.zip"
+  source_dir  = local.lambda_edge_rewrite_header_source_folder
+  output_path = "${local.lambda_edge_rewrite_header_source_folder}/lambda.zip"
 
   excludes = ["lambda.zip", ".gitignore"]
 }
@@ -201,9 +208,9 @@ resource "aws_lambda_function" "viewer_response" {
   handler       = "index.handler"
   runtime       = "nodejs22.x"
 
-  filename = data.archive_file.rewrite_header_zip.output_path
+  filename         = data.archive_file.rewrite_header_zip.output_path
   source_code_hash = data.archive_file.rewrite_header_zip.output_base64sha256
-  publish = true
+  publish          = true
 
   depends_on = [
     aws_iam_role_policy_attachment.lambda_edge_rewrite_header_policy,
@@ -222,15 +229,15 @@ resource "aws_acm_certificate" "cf" {
   subject_alternative_names = [
     "*.${var.dns_name}"
   ]
-   lifecycle {
+  lifecycle {
     create_before_destroy = true
   }
 }
 
 resource "azurerm_dns_cname_record" "acm_validation" {
-  for_each = toset([ var.dns_name, "*.${var.dns_name}"])
+  for_each = toset([var.dns_name, "*.${var.dns_name}"])
 
-  name  = one(distinct([
+  name = one(distinct([
     for dvo in aws_acm_certificate.cf.domain_validation_options :
     replace(dvo.resource_record_name, ".${var.dns_name}.", "")
     if dvo.domain_name == each.key && dvo.resource_record_type == "CNAME"
@@ -263,7 +270,7 @@ resource "aws_acm_certificate" "cf_prod" {
   subject_alternative_names = [
     "*.prod.${var.dns_name}"
   ]
-   lifecycle {
+  lifecycle {
     create_before_destroy = true
   }
 }
@@ -297,7 +304,7 @@ resource "azurerm_dns_cname_record" "acm_validation_prod" {
     dvo.domain_name => dvo
   }
 
-  name  = one(distinct([
+  name = one(distinct([
     for dvo in aws_acm_certificate.cf_prod.domain_validation_options :
     replace(dvo.resource_record_name, ".${var.dns_name}.", "")
     if dvo.domain_name == each.key && dvo.resource_record_type == "CNAME"
@@ -369,7 +376,7 @@ resource "aws_cloudfront_distribution" "website" {
     aws_acm_certificate_validation.cf
   ]
 
- tags = {
+  tags = {
     Name = var.cf_unavailable_name
   }
 
@@ -378,14 +385,14 @@ resource "aws_cloudfront_distribution" "website" {
   ]
 
   viewer_certificate {
-    acm_certificate_arn = aws_acm_certificate.cf.arn
-    ssl_support_method  = "sni-only"
+    acm_certificate_arn      = aws_acm_certificate.cf.arn
+    ssl_support_method       = "sni-only"
     minimum_protocol_version = "TLSv1.2_2021"
   }
 
   origin {
-    domain_name = aws_s3_bucket.static_website.bucket_regional_domain_name
-    origin_id   = var.bucket_static_website_name
+    domain_name              = aws_s3_bucket.static_website.bucket_regional_domain_name
+    origin_id                = var.bucket_static_website_name
     origin_access_control_id = aws_cloudfront_origin_access_control.oac_website.id
   }
 
@@ -396,9 +403,9 @@ resource "aws_cloudfront_distribution" "website" {
     allowed_methods = ["GET", "HEAD"]
     cached_methods  = ["GET", "HEAD"]
 
-    target_origin_id = var.bucket_static_website_name
-    cache_policy_id  = data.aws_cloudfront_cache_policy.static_website.id
-    origin_request_policy_id = aws_cloudfront_origin_request_policy.apim_policy.id
+    target_origin_id           = var.bucket_static_website_name
+    cache_policy_id            = data.aws_cloudfront_cache_policy.static_website.id
+    origin_request_policy_id   = aws_cloudfront_origin_request_policy.apim_policy.id
     response_headers_policy_id = aws_cloudfront_response_headers_policy.security_hsts_policy.id
 
     viewer_protocol_policy = "redirect-to-https"
@@ -474,7 +481,7 @@ resource "aws_cloudfront_origin_access_control" "oac_spa" {
 
 
 resource "aws_cloudfront_cache_policy" "html_no_cache" {
-  name = "html-no-cache"
+  name = var.cf_cache_policy_name
 
   default_ttl = 0
   min_ttl     = 0
@@ -519,7 +526,7 @@ resource "aws_cloudfront_distribution" "spa" {
   depends_on = [
     aws_acm_certificate_validation.cf
   ]
- tags = {
+  tags = {
     Name = var.cf_login_name
   }
 
@@ -528,14 +535,14 @@ resource "aws_cloudfront_distribution" "spa" {
   ]
 
   viewer_certificate {
-    acm_certificate_arn = aws_acm_certificate.cf.arn
-    ssl_support_method  = "sni-only"
+    acm_certificate_arn      = aws_acm_certificate.cf.arn
+    ssl_support_method       = "sni-only"
     minimum_protocol_version = "TLSv1.2_2021"
   }
 
   origin {
-    domain_name = aws_s3_bucket.spa.bucket_regional_domain_name
-    origin_id   = var.bucket_spa_name
+    domain_name              = aws_s3_bucket.spa.bucket_regional_domain_name
+    origin_id                = var.bucket_spa_name
     origin_access_control_id = aws_cloudfront_origin_access_control.oac_spa.id
   }
 
@@ -551,7 +558,7 @@ resource "aws_cloudfront_distribution" "spa" {
     cache_policy_id  = data.aws_cloudfront_cache_policy.static_website.id
 
     viewer_protocol_policy = "redirect-to-https"
-}
+  }
   default_cache_behavior {
     allowed_methods = ["GET", "HEAD"]
     cached_methods  = ["GET", "HEAD"]
@@ -656,14 +663,14 @@ resource "aws_cloudfront_distribution" "prod" {
   ]
 
   viewer_certificate {
-    acm_certificate_arn = aws_acm_certificate.cf_prod.arn
-    ssl_support_method  = "sni-only"
+    acm_certificate_arn      = aws_acm_certificate.cf_prod.arn
+    ssl_support_method       = "sni-only"
     minimum_protocol_version = "TLSv1.2_2021"
   }
 
   origin {
-    domain_name = aws_s3_bucket.static_website.bucket_regional_domain_name
-    origin_id   = var.bucket_static_website_name
+    domain_name              = aws_s3_bucket.static_website.bucket_regional_domain_name
+    origin_id                = var.bucket_static_website_name
     origin_access_control_id = aws_cloudfront_origin_access_control.oac_website.id
   }
 
@@ -674,9 +681,9 @@ resource "aws_cloudfront_distribution" "prod" {
     allowed_methods = ["GET", "HEAD"]
     cached_methods  = ["GET", "HEAD"]
 
-    target_origin_id = var.bucket_static_website_name
-    cache_policy_id  = data.aws_cloudfront_cache_policy.static_website.id
-    origin_request_policy_id = aws_cloudfront_origin_request_policy.apim_policy.id
+    target_origin_id           = var.bucket_static_website_name
+    cache_policy_id            = data.aws_cloudfront_cache_policy.static_website.id
+    origin_request_policy_id   = aws_cloudfront_origin_request_policy.apim_policy.id
     response_headers_policy_id = aws_cloudfront_response_headers_policy.security_hsts_policy.id
 
 
@@ -780,7 +787,7 @@ resource "aws_cloudfront_origin_request_policy" "apim_policy" {
 }
 
 resource "aws_cloudfront_response_headers_policy" "security_hsts_policy" {
-  name = "HSTS-Security-Policy"
+  name = var.cf_response_headers_policy_name
 
   security_headers_config {
     strict_transport_security {
@@ -793,15 +800,15 @@ resource "aws_cloudfront_response_headers_policy" "security_hsts_policy" {
     content_type_options {
       override = true
     }
-    frame_options  {
+    frame_options {
       frame_option = "SAMEORIGIN"
       override     = true
     }
 
-    xss_protection  {
-      protection   = true
-      mode_block   = true
-      override     = true
+    xss_protection {
+      protection = true
+      mode_block = true
+      override   = true
     }
 
     referrer_policy {

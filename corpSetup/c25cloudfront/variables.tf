@@ -39,13 +39,13 @@ variable "bucket_spa_name" {
 }
 
 variable "bucket_static_website_source_folder" {
-  description = "The source folder for the static website files"
+  description = "Relative path (from module root) to static website source files"
   type        = string
   # default     = "source/webpage"
 }
 
 variable "bucket_spa_source_folder" {
-  description = "The source folder for the SPA files"
+  description = "Relative path (from module root) to SPA source files"
   type        = string
   # default     = "source/loginApp"
 }
@@ -57,7 +57,7 @@ variable "lambda_edge_auth_guard_role" {
 }
 
 variable "lambda_edge_auth_guard_source_folder" {
-  description = "The source folder for the AWS Lambda@Edge auth guard function"
+  description = "Relative path (from module root) to the source folder for the AWS Lambda@Edge auth guard function"
   type        = string
   # default     = "source/authGuardLambdaEdge"
 }
@@ -75,7 +75,7 @@ variable "lambda_edge_rewrite_header_role" {
 }
 
 variable "lambda_edge_rewrite_header_source_folder" {
-  description = "The source folder for the AWS Lambda@Edge rewrite header function"
+  description = "Relative path (from module root) to the source folder for the AWS Lambda@Edge rewrite header function"
   type        = string
   # default     = "source/rewriteHeaderLambdaEdge"
 }
@@ -90,13 +90,12 @@ variable "dns_name" {
   description = "The DNS name for the corporate website"
   type        = string
   # default = "z3nm3.com"
-  default = "zenblox.com.au"
 }
 
 variable "resource_group_name" {
   description = "The name of the Azure resource group"
   type        = string
-  default = "root-zenblox"
+  # default     = "root-zenblox"
 }
 
 variable "subscription_id" {
@@ -127,7 +126,16 @@ variable "app_registration_name" {
 variable "origin_request_policy_name" {
   description = "The name of the origin request policy for APIM"
   type        = string
-  # default     = "asleepswordtail-origin-request-policy"
+}
+
+variable "cf_cache_policy_name" {
+  description = "The name of the CloudFront cache policy for HTML no-cache"
+  type        = string
+}
+
+variable "cf_response_headers_policy_name" {
+  description = "The name of the CloudFront response headers policy for HSTS"
+  type        = string
 }
 
 variable "tenant_id" {

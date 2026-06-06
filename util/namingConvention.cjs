@@ -33,6 +33,14 @@ function getOriginRequestPolicyName(targetEnv, functionName) {
   return `${targetEnv}-${functionName}-orp`;
 }
 
+function getCachePolicyName(targetEnv, functionName) {
+  return `${targetEnv}-${functionName}-cp`;
+}
+
+function getResponseHeadersPolicyName(targetEnv, functionName) {
+  return `${targetEnv}-${functionName}-rhp`;
+}
+
 function getAppRegistrationName(targetEnv, applicationName) {
   return `${targetEnv}-${applicationName}`;
 }
@@ -111,6 +119,8 @@ module.exports = {
   getLambdaFunctionRoleName,
   getCloudfrontOriginAccessControlName,
   getOriginRequestPolicyName,
+  getCachePolicyName,
+  getResponseHeadersPolicyName,
   getAppRegistrationName,
   getResourceGroupName,
   getStorageAccountName,

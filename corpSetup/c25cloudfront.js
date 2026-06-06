@@ -17,6 +17,8 @@ import {
   getLambdaFunctionRoleName,
   getCloudfrontOriginAccessControlName,
   getOriginRequestPolicyName,
+  getCachePolicyName,
+  getResponseHeadersPolicyName,
   getAppRegistrationName,
 } from "../util/namingConvention.cjs";
 import { getSubscriptionId } from "../util/azureCli.cjs";
@@ -128,7 +130,9 @@ function main(corpEnvFile) {
         .split("\n")
         .map((s) => s.trim())
         .filter(Boolean);
-    } catch {}
+    } catch {
+      /* ignore */
+    }
     console.log("tfStateList:", tfStateList);
 
     const subscriptionId = env.get("SUBSCRIPTION_ID");
@@ -144,7 +148,7 @@ function main(corpEnvFile) {
     const accSubscriptionId = getSubscriptionId();
     if (accSubscriptionId !== subscriptionId) {
       execSync(`az account set --subscription ${subscriptionId}`, { stdio: "pipe", shell: true });
-      console.log("Switching subscription to", `${corpName}-subscription`);
+      console.log("Switching subscription to", subscriptionId);
     }
     const resourceGroupName = getResourceGroupName("root", corpName);
     const storageAccountName = getStorageAccountName(corpName);
@@ -158,16 +162,14 @@ function main(corpEnvFile) {
     setTfVar("dns_name", dnsName);
     setTfVar("cloudfront_alias_suffix", bucketNameSuffix);
     setTfVar("resource_group_name", resourceGroupName);
-    const bucketStaticWebsiteSourceFolder = resolve(workingDirPath, "source", "webpage");
-    const bucketSpaSourceFolder = resolve(workingDirPath, "source", "loginApp");
-    const lambdaEdgeAuthGuardSourceFolder = resolve(workingDirPath, "source", "authGuardLambdaEdge");
-    const lambdaEdgeRewriteHeaderSourceFolder = resolve(workingDirPath, "source", "rewriteHeaderLambdaEdge");
-
+    // relative paths for TF vars (combined with path.module in main.tf locals)
     setTfVar("app_registration_name", getAppRegistrationName(corpName, "login"));
-    setTfVar("bucket_static_website_source_folder", bucketStaticWebsiteSourceFolder);
-    setTfVar("bucket_spa_source_folder", bucketSpaSourceFolder);
-    setTfVar("lambda_edge_auth_guard_source_folder", lambdaEdgeAuthGuardSourceFolder);
-    setTfVar("lambda_edge_rewrite_header_source_folder", lambdaEdgeRewriteHeaderSourceFolder);
+    const spaRelDir = "source/loginApp";
+    const authGuardRelDir = "source/authGuardLambdaEdge";
+    setTfVar("bucket_static_website_source_folder", "source/webpage");
+    setTfVar("bucket_spa_source_folder", spaRelDir);
+    setTfVar("lambda_edge_auth_guard_source_folder", authGuardRelDir);
+    setTfVar("lambda_edge_rewrite_header_source_folder", "source/rewriteHeaderLambdaEdge");
     setTfVar("bucket_static_website_name", getBucketName(corpName, `web-${bucketNameSuffix}`));
     setTfVar("bucket_spa_name", getBucketName(corpName, `login-${bucketNameSuffix}`));
     setTfVar("lambda_edge_auth_guard_name", getLambdaFunctionName(corpName, "guard"));
@@ -180,6 +182,10 @@ function main(corpEnvFile) {
     setTfVar("cloudfront_oac_static_website_name", getCloudfrontOriginAccessControlName(corpName, "web"));
     setTfVar("cloudfront_oac_spa_name", getCloudfrontOriginAccessControlName(corpName, "login"));
     setTfVar("origin_request_policy_name", getOriginRequestPolicyName(corpName, "restricted"));
+    const cachePolicyName = getCachePolicyName(corpName, "html-no-cache");
+    const responseHeadersPolicyName = getResponseHeadersPolicyName(corpName, "HSTS");
+    setTfVar("cf_cache_policy_name", cachePolicyName);
+    setTfVar("cf_response_headers_policy_name", responseHeadersPolicyName);
     execSync(
       `terraform init -reconfigure\
             -backend-config="resource_group_name=${resourceGroupName}" \
@@ -189,12 +195,95 @@ function main(corpEnvFile) {
       { stdio: "pipe", shell: true, cwd: workingDirPath }
     );
 
+    // absolute paths for pnpm build commands
+    const bucketSpaSourceFolder = resolve(workingDirPath, spaRelDir);
+    const lambdaEdgeAuthGuardSourceFolder = resolve(workingDirPath, authGuardRelDir);
     // install dependencies and build for SPA
     execSync(`pnpm install --ignore-workspace`, { stdio: "inherit", shell: true, cwd: bucketSpaSourceFolder });
     execSync(`pnpm run build`, { stdio: "inherit", shell: true, cwd: bucketSpaSourceFolder });
     // install dependencies and build for lambda@edge
     execSync(`pnpm install --ignore-workspace`, { stdio: "inherit", shell: true, cwd: lambdaEdgeAuthGuardSourceFolder });
     execSync(`pnpm run build`, { stdio: "inherit", shell: true, cwd: lambdaEdgeAuthGuardSourceFolder });
+    // rewriteHeaderLambdaEdge has no build step — terraform archive_file zips it directly
+
+    // import existing CloudFront cache policy
+    if (!tfStateList.includes("aws_cloudfront_cache_policy.html_no_cache")) {
+      let cachePolicyId = null;
+      try {
+        cachePolicyId =
+          execSync(
+            `aws cloudfront list-cache-policies --type custom --query "CachePolicyList.Items[?CachePolicy.CachePolicyConfig.Name=='${cachePolicyName}'].CachePolicy.Id" --output text`,
+            { encoding: "utf8", stdio: "pipe", shell: true }
+          ).trim() || null;
+      } catch {
+        /* ignore */
+      }
+      if (cachePolicyId) {
+        console.log("Importing aws_cloudfront_cache_policy.html_no_cache");
+        try {
+          execSync(`terraform import aws_cloudfront_cache_policy.html_no_cache "${cachePolicyId}"`, {
+            stdio: "pipe",
+            shell: true,
+            cwd: workingDirPath,
+          });
+        } catch (err) {
+          console.warn("Import aws_cloudfront_cache_policy.html_no_cache failed:", err.message);
+        }
+      }
+    }
+
+    // import existing CloudFront origin request policy
+    if (!tfStateList.includes("aws_cloudfront_origin_request_policy.apim_policy")) {
+      const originRequestPolicyName = getOriginRequestPolicyName(corpName, "restricted");
+      let originRequestPolicyId = null;
+      try {
+        originRequestPolicyId =
+          execSync(
+            `aws cloudfront list-origin-request-policies --type custom --query "OriginRequestPolicyList.Items[?OriginRequestPolicy.OriginRequestPolicyConfig.Name=='${originRequestPolicyName}'].OriginRequestPolicy.Id" --output text`,
+            { encoding: "utf8", stdio: "pipe", shell: true }
+          ).trim() || null;
+      } catch {
+        /* ignore */
+      }
+      if (originRequestPolicyId) {
+        console.log("Importing aws_cloudfront_origin_request_policy.apim_policy");
+        try {
+          execSync(`terraform import aws_cloudfront_origin_request_policy.apim_policy "${originRequestPolicyId}"`, {
+            stdio: "pipe",
+            shell: true,
+            cwd: workingDirPath,
+          });
+        } catch (err) {
+          console.warn("Import aws_cloudfront_origin_request_policy.apim_policy failed:", err.message);
+        }
+      }
+    }
+
+    // import existing CloudFront response headers policy
+    if (!tfStateList.includes("aws_cloudfront_response_headers_policy.security_hsts_policy")) {
+      let responseHeadersPolicyId = null;
+      try {
+        responseHeadersPolicyId =
+          execSync(
+            `aws cloudfront list-response-headers-policies --type custom --query "ResponseHeadersPolicyList.Items[?ResponseHeadersPolicy.ResponseHeadersPolicyConfig.Name=='${responseHeadersPolicyName}'].ResponseHeadersPolicy.Id" --output text`,
+            { encoding: "utf8", stdio: "pipe", shell: true }
+          ).trim() || null;
+      } catch {
+        /* ignore */
+      }
+      if (responseHeadersPolicyId) {
+        console.log("Importing aws_cloudfront_response_headers_policy.security_hsts_policy");
+        try {
+          execSync(`terraform import aws_cloudfront_response_headers_policy.security_hsts_policy "${responseHeadersPolicyId}"`, {
+            stdio: "pipe",
+            shell: true,
+            cwd: workingDirPath,
+          });
+        } catch (err) {
+          console.warn("Import aws_cloudfront_response_headers_policy.security_hsts_policy failed:", err.message);
+        }
+      }
+    }
 
     // if (!tfStateList.includes("aws_cloudwatch_log_group.lambda_edge_auth_guard_logs ")) {
     //   execSync(`terraform import aws_cloudwatch_log_group.lambda_edge_auth_guard_logs /aws/lambda/${lambdaEdgeAuthGuardName}`, {

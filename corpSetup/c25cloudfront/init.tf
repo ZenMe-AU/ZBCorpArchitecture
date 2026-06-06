@@ -11,11 +11,13 @@ terraform {
       version = "~> 4.0"
     }
 
-     azuread = {
+    azuread = {
       source  = "hashicorp/azuread"
       version = "~> 3.0"
     }
   }
+
+  backend "azurerm" {}
 }
 
 provider "aws" {
@@ -29,7 +31,3 @@ provider "azurerm" {
 
 provider "azuread" {}
 
-# terraform {
-#   backend "azurerm" {
-#   }
-#  }
