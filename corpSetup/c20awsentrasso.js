@@ -177,22 +177,36 @@ function main(corpEnvFile) {
 
       if (spObjectId) {
         if (!tfStateList.includes("azuread_application_from_template.aws_sso_corp")) {
-          console.log("Importing azuread_application_from_template.aws_sso_corp");
+          // Get the gallery template ID used to create this app
+          let templateId = null;
           try {
-            execSync(`terraform import azuread_application_from_template.aws_sso_corp "${appObjectId}/${spObjectId}"`, {
-              stdio: "pipe",
-              shell: true,
-              cwd: resolve(__dirname, workingDirName),
-            });
-          } catch (err) {
-            console.warn("Import azuread_application_from_template.aws_sso_corp failed:", err.message);
+            templateId =
+              execSync(`az ad app show --id ${appObjectId} --query applicationTemplateId -o tsv`, {
+                encoding: "utf8",
+                stdio: "pipe",
+                shell: true,
+              }).trim() || null;
+          } catch {
+            /* ignore */
+          }
+
+          if (templateId) {
+            console.log("Importing azuread_application_from_template.aws_sso_corp");
+            try {
+              execSync(
+                `terraform import azuread_application_from_template.aws_sso_corp "/applicationTemplates/${templateId}/instantiate/${appObjectId}/${spObjectId}"`,
+                { stdio: "pipe", shell: true, cwd: resolve(__dirname, workingDirName) }
+              );
+            } catch (err) {
+              console.warn("Import azuread_application_from_template.aws_sso_corp failed:", err.message);
+            }
           }
         }
 
         if (!tfStateList.includes("azuread_service_principal.aws_sso_corp")) {
           console.log("Importing azuread_service_principal.aws_sso_corp");
           try {
-            execSync(`terraform import azuread_service_principal.aws_sso_corp "${spObjectId}"`, {
+            execSync(`terraform import azuread_service_principal.aws_sso_corp "/servicePrincipals/${spObjectId}"`, {
               stdio: "pipe",
               shell: true,
               cwd: resolve(__dirname, workingDirName),
@@ -217,11 +231,10 @@ function main(corpEnvFile) {
           if (keyId) {
             console.log("Importing azuread_service_principal_token_signing_certificate.aws_sso_corp");
             try {
-              execSync(`terraform import azuread_service_principal_token_signing_certificate.aws_sso_corp "${spObjectId}/${keyId}"`, {
-                stdio: "inherit",
-                shell: true,
-                cwd: resolve(__dirname, workingDirName),
-              });
+              execSync(
+                `terraform import azuread_service_principal_token_signing_certificate.aws_sso_corp "/servicePrincipals/${spObjectId}/keyCredentials/${keyId}"`,
+                { stdio: "pipe", shell: true, cwd: resolve(__dirname, workingDirName) }
+              );
             } catch (err) {
               console.warn("Import azuread_service_principal_token_signing_certificate.aws_sso_corp failed:", err.message);
             }
@@ -244,10 +257,11 @@ function main(corpEnvFile) {
             /* ignore */
           }
           if (isExisting) {
+            const encodedUri = Buffer.from(identifierUri).toString("base64");
             console.log("Importing azuread_application_identifier_uri.aws_sso_corp");
             try {
-              execSync(`terraform import azuread_application_identifier_uri.aws_sso_corp "${appObjectId}/${identifierUri}"`, {
-                stdio: "inherit",
+              execSync(`terraform import azuread_application_identifier_uri.aws_sso_corp "/applications/${appObjectId}/identifierUris/${encodedUri}"`, {
+                stdio: "pipe",
                 shell: true,
                 cwd: resolve(__dirname, workingDirName),
               });
