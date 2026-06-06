@@ -307,6 +307,12 @@ jobs:
           mkdir -p corpSetup
           ARTIFACT_LIST=$(cat /tmp/artifactList.json)
 
+          # Load existing deploy fields from committed changeset
+          EXISTING_STAGES="[]"
+          if [ -f "$DEPLOYMENT_CHANGESET_PATH" ]; then
+            EXISTING_STAGES=$(jq '.stages // []' "$DEPLOYMENT_CHANGESET_PATH")
+          fi
+
           RESULT="[]"
           DIRS=$(find artifacts -mindepth 1 -name "*-status")
           for dir in $DIRS; do
@@ -322,17 +328,30 @@ jobs:
             [ -z "$PLAN_URL" ] && PLAN_URL=""
             [ -z "$DIST_URL" ] && DIST_URL=""
 
+            # Carry over deploy fields from previous run
+            EXISTING_DEPLOY=$(echo "$EXISTING_STAGES" | jq \
+              --arg name "$STAGE_NAME" \
+              'map(select(.name==$name)) | first // {} |
+               {
+                 deployStatus:  (.deployStatus  // null),
+                 deployRunId:   (.deployRunId   // null),
+                 deployedAt:    (.deployedAt    // null),
+                 deployLogId:   (.deployLogId   // null),
+                 deployLogUrl:  (.deployLogUrl  // null)
+               }')
+
             UPDATED=$(jq \
               --argjson plan "$PLAN_ID" \
               --argjson dist "$DIST_ID" \
               --arg planUrl "$PLAN_URL" \
               --arg distUrl "$DIST_URL" \
+              --argjson deploy "$EXISTING_DEPLOY" \
               '. + {
                   planJsonId: $plan,
                   distId: $dist,
                   planJsonUrl: $planUrl,
                   distUrl: $distUrl
-              }' "$FILE")
+              } + $deploy' "$FILE")
 
             RESULT=$(echo "$RESULT" | jq ". + [ $UPDATED ]")
           done
