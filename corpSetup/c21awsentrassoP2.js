@@ -158,15 +158,15 @@ function main(corpEnvFile) {
         /* ignore */
       }
       if (samlArn) {
-        console.log("Importing aws_iam_saml_provider.entra:", samlArn);
+        console.log("Importing aws_iam_saml_provider.entra");
         try {
           execSync(`terraform import aws_iam_saml_provider.entra "${samlArn}"`, {
-            stdio: "pipe",
+            stdio: "inherit",
             shell: true,
             cwd: resolve(__dirname, workingDirName),
           });
-        } catch {
-          /* ignore */
+        } catch (err) {
+          console.warn("Import aws_iam_saml_provider.entra failed:", err.message);
         }
       }
     }
@@ -192,8 +192,8 @@ function main(corpEnvFile) {
               shell: true,
               cwd: resolve(__dirname, workingDirName),
             });
-          } catch {
-            /* ignore */
+          } catch (err) {
+            console.warn(`Import ${tfResource} failed:`, err.message);
           }
         }
 
@@ -213,12 +213,12 @@ function main(corpEnvFile) {
             console.log(`Importing ${attachmentResource}`);
             try {
               execSync(`terraform import ${attachmentResource} "${iamRoleName}/${policyArn}"`, {
-                stdio: "pipe",
+                stdio: "inherit",
                 shell: true,
                 cwd: resolve(__dirname, workingDirName),
               });
-            } catch {
-              /* ignore */
+            } catch (err) {
+              console.warn(`Import ${attachmentResource} failed:`, err.message);
             }
           }
         }

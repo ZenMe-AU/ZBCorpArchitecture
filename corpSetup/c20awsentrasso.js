@@ -184,8 +184,8 @@ function main(corpEnvFile) {
               shell: true,
               cwd: resolve(__dirname, workingDirName),
             });
-          } catch {
-            /* ignore */
+          } catch (err) {
+            console.warn("Import azuread_application_from_template.aws_sso_corp failed:", err.message);
           }
         }
 
@@ -197,8 +197,8 @@ function main(corpEnvFile) {
               shell: true,
               cwd: resolve(__dirname, workingDirName),
             });
-          } catch {
-            /* ignore */
+          } catch (err) {
+            console.warn("Import azuread_service_principal.aws_sso_corp failed:", err.message);
           }
         }
 
@@ -218,12 +218,12 @@ function main(corpEnvFile) {
             console.log("Importing azuread_service_principal_token_signing_certificate.aws_sso_corp");
             try {
               execSync(`terraform import azuread_service_principal_token_signing_certificate.aws_sso_corp "${spObjectId}/${keyId}"`, {
-                stdio: "pipe",
+                stdio: "inherit",
                 shell: true,
                 cwd: resolve(__dirname, workingDirName),
               });
-            } catch {
-              /* ignore */
+            } catch (err) {
+              console.warn("Import azuread_service_principal_token_signing_certificate.aws_sso_corp failed:", err.message);
             }
           }
         }
@@ -247,12 +247,12 @@ function main(corpEnvFile) {
             console.log("Importing azuread_application_identifier_uri.aws_sso_corp");
             try {
               execSync(`terraform import azuread_application_identifier_uri.aws_sso_corp "${appObjectId}/${identifierUri}"`, {
-                stdio: "pipe",
+                stdio: "inherit",
                 shell: true,
                 cwd: resolve(__dirname, workingDirName),
               });
-            } catch {
-              /* ignore */
+            } catch (err) {
+              console.warn("Import azuread_application_identifier_uri.aws_sso_corp failed:", err.message);
             }
           }
         }
