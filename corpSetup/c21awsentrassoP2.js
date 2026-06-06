@@ -116,7 +116,9 @@ function main(corpEnvFile) {
         .split("\n")
         .map((s) => s.trim())
         .filter(Boolean);
-    } catch {}
+    } catch {
+      /* ignore */
+    }
     console.log("tfStateList:", tfStateList);
 
     //IMPORTANT: Need Global Administrator role active to run this code
@@ -128,7 +130,7 @@ function main(corpEnvFile) {
     const accSubscriptionId = getSubscriptionId();
     if (accSubscriptionId !== subscriptionId) {
       execSync(`az account set --subscription ${subscriptionId}`, { stdio: "pipe", shell: true });
-      console.log("Switching subscription to", `${corpName}-subscription`);
+      console.log("Switching subscription to", subscriptionId);
     }
 
     setTfVar("tenant_id", tenantId);
@@ -138,6 +140,91 @@ function main(corpEnvFile) {
 
     console.log("Starting Terraform initialization.");
     execSync(`terraform init`, { stdio: "pipe", shell: true, cwd: resolve(__dirname, workingDirName) });
+
+    const identityProviderName = env.get("IDENTITY_PROVIDER_NAME") || "EntraID";
+    const roleName = env.get("ROLE_NAME") || "AccountAdminRole";
+    const roleRoName = env.get("ROLE_RO_NAME") || "ReadOnlyRole";
+
+    if (!tfStateList.includes("aws_iam_saml_provider.entra")) {
+      let samlArn = null;
+      try {
+        samlArn =
+          execSync(`aws iam list-saml-providers --query "SAMLProviderList[?contains(Arn, '/${identityProviderName}')].Arn" -o text`, {
+            encoding: "utf8",
+            stdio: "pipe",
+            shell: true,
+          }).trim() || null;
+      } catch {
+        /* ignore */
+      }
+      if (samlArn) {
+        console.log("Importing aws_iam_saml_provider.entra:", samlArn);
+        try {
+          execSync(`terraform import aws_iam_saml_provider.entra "${samlArn}"`, {
+            stdio: "pipe",
+            shell: true,
+            cwd: resolve(__dirname, workingDirName),
+          });
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+
+    for (const [tfResource, iamRoleName, policyArn] of [
+      ["aws_iam_role.entra_id_admin_access", roleName, "arn:aws:iam::aws:policy/AdministratorAccess"],
+      ["aws_iam_role.entra_id_read_only_access", roleRoName, "arn:aws:iam::aws:policy/ReadOnlyAccess"],
+    ]) {
+      let roleExists = false;
+      try {
+        execSync(`aws iam get-role --role-name ${iamRoleName}`, { stdio: "ignore" });
+        roleExists = true;
+      } catch {
+        /* ignore */
+      }
+
+      if (roleExists) {
+        if (!tfStateList.includes(tfResource)) {
+          console.log(`Importing ${tfResource}`);
+          try {
+            execSync(`terraform import ${tfResource} "${iamRoleName}"`, {
+              stdio: "pipe",
+              shell: true,
+              cwd: resolve(__dirname, workingDirName),
+            });
+          } catch {
+            /* ignore */
+          }
+        }
+
+        const attachmentResource = tfResource.replace("aws_iam_role.", "aws_iam_role_policy_attachment.");
+        if (!tfStateList.includes(attachmentResource)) {
+          let isPolicyAttached = false;
+          try {
+            const attached = execSync(
+              `aws iam list-attached-role-policies --role-name ${iamRoleName} --query "AttachedPolicies[?PolicyArn=='${policyArn}'].PolicyArn" -o text`,
+              { encoding: "utf8", stdio: "pipe", shell: true }
+            ).trim();
+            isPolicyAttached = !!attached;
+          } catch {
+            /* ignore */
+          }
+          if (isPolicyAttached) {
+            console.log(`Importing ${attachmentResource}`);
+            try {
+              execSync(`terraform import ${attachmentResource} "${iamRoleName}/${policyArn}"`, {
+                stdio: "pipe",
+                shell: true,
+                cwd: resolve(__dirname, workingDirName),
+              });
+            } catch {
+              /* ignore */
+            }
+          }
+        }
+      }
+    }
+
     // Run terraform
   } catch (error) {
     console.error(error.stack);

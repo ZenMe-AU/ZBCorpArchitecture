@@ -116,7 +116,9 @@ function main(corpEnvFile) {
         .split("\n")
         .map((s) => s.trim())
         .filter(Boolean);
-    } catch {}
+    } catch {
+      /* ignore */
+    }
     console.log("tfStateList:", tfStateList);
 
     //IMPORTANT: Need Global Administrator role active to run this code
@@ -128,16 +130,135 @@ function main(corpEnvFile) {
     const accSubscriptionId = getSubscriptionId();
     if (accSubscriptionId !== subscriptionId) {
       execSync(`az account set --subscription ${subscriptionId}`, { stdio: "pipe", shell: true });
-      console.log("Switching subscription to", `${corpName}-subscription`);
+      console.log("Switching subscription to", subscriptionId);
     }
 
     setTfVar("tenant_id", tenantId);
     setTfVar("subscription_id", subscriptionId);
 
+    const appName = env.get("APP_NAME") || "AWS Admin Console";
+    setTfVar("app_name", appName);
+
     // create sso for aws account
 
     console.log("Starting Terraform initialization.");
     execSync(`terraform init`, { stdio: "pipe", shell: true, cwd: resolve(__dirname, workingDirName) });
+
+    // Fetch existing app registration info (used for all imports below)
+    let appObjectId = null;
+    let appClientId = null;
+    try {
+      const appJson = execSync(`az ad app list --display-name "${appName}" --query "[0].{id:id,appId:appId}" -o json`, {
+        encoding: "utf8",
+        stdio: "pipe",
+        shell: true,
+      }).trim();
+      const app = JSON.parse(appJson || "{}");
+      if (app?.id) {
+        appObjectId = app.id;
+        appClientId = app.appId;
+      }
+    } catch {
+      /* ignore */
+    }
+
+    if (appObjectId && appClientId) {
+      let spObjectId = null;
+      try {
+        spObjectId =
+          execSync(`az ad sp show --id ${appClientId} --query id -o tsv`, {
+            encoding: "utf8",
+            stdio: "pipe",
+            shell: true,
+          }).trim() || null;
+      } catch {
+        /* ignore */
+      }
+
+      if (spObjectId) {
+        if (!tfStateList.includes("azuread_application_from_template.aws_sso_corp")) {
+          console.log("Importing azuread_application_from_template.aws_sso_corp");
+          try {
+            execSync(`terraform import azuread_application_from_template.aws_sso_corp "${appObjectId}/${spObjectId}"`, {
+              stdio: "pipe",
+              shell: true,
+              cwd: resolve(__dirname, workingDirName),
+            });
+          } catch {
+            /* ignore */
+          }
+        }
+
+        if (!tfStateList.includes("azuread_service_principal.aws_sso_corp")) {
+          console.log("Importing azuread_service_principal.aws_sso_corp");
+          try {
+            execSync(`terraform import azuread_service_principal.aws_sso_corp "${spObjectId}"`, {
+              stdio: "pipe",
+              shell: true,
+              cwd: resolve(__dirname, workingDirName),
+            });
+          } catch {
+            /* ignore */
+          }
+        }
+
+        if (!tfStateList.includes("azuread_service_principal_token_signing_certificate.aws_sso_corp")) {
+          let keyId = null;
+          try {
+            keyId =
+              execSync(`az ad sp show --id ${spObjectId} --query "keyCredentials[?usage=='Sign'][0].keyId" -o tsv`, {
+                encoding: "utf8",
+                stdio: "pipe",
+                shell: true,
+              }).trim() || null;
+          } catch {
+            /* ignore */
+          }
+          if (keyId) {
+            console.log("Importing azuread_service_principal_token_signing_certificate.aws_sso_corp");
+            try {
+              execSync(`terraform import azuread_service_principal_token_signing_certificate.aws_sso_corp "${spObjectId}/${keyId}"`, {
+                stdio: "pipe",
+                shell: true,
+                cwd: resolve(__dirname, workingDirName),
+              });
+            } catch {
+              /* ignore */
+            }
+          }
+        }
+
+        if (!tfStateList.includes("azuread_application_identifier_uri.aws_sso_corp")) {
+          const identifierUri = `https://signin.aws.amazon.com/saml#${appObjectId}`;
+          let isExisting = false;
+          try {
+            const uris = JSON.parse(
+              execSync(`az ad app show --id ${appObjectId} --query identifierUris -o json`, {
+                encoding: "utf8",
+                stdio: "pipe",
+                shell: true,
+              }).trim() || "[]"
+            );
+            isExisting = uris.includes(identifierUri);
+          } catch {
+            /* ignore */
+          }
+          if (isExisting) {
+            console.log("Importing azuread_application_identifier_uri.aws_sso_corp");
+            try {
+              execSync(`terraform import azuread_application_identifier_uri.aws_sso_corp "${appObjectId}/${identifierUri}"`, {
+                stdio: "pipe",
+                shell: true,
+                cwd: resolve(__dirname, workingDirName),
+              });
+            } catch {
+              /* ignore */
+            }
+          }
+        }
+      }
+    }
+
     // Run terraform
   } catch (error) {
     console.error(error.stack);
