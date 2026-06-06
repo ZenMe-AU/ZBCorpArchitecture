@@ -96,11 +96,7 @@ resource "azurerm_dns_txt_record" "verify" {
   resource_group_name = var.resource_group_name
   ttl                 = 3600
 
-  # Ensure the resource group and DNS zone exist before creating the TXT record
-  depends_on = [
-    azurerm_dns_zone.dns_zone,
-    azurerm_resource_group.root_rg,
-  ]
+  
 
   record {
     # Fetches the MS verification token from the Graph API
@@ -113,6 +109,10 @@ resource "azurerm_dns_txt_record" "verify" {
     ignore_changes = [record]
   }
 
-  depends_on = [azurerm_dns_zone.dns_zone]
+  # Ensure the resource group and DNS zone exist before creating the TXT record
+  depends_on = [
+    azurerm_dns_zone.dns_zone,
+    azurerm_resource_group.root_rg,
+  ]
 }
 
