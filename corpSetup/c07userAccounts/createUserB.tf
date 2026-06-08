@@ -1,19 +1,25 @@
+data "azuread_users" "existing" {
+  return_all = true
+}
 
 locals {
   users_csv = csvdecode(file("${path.module}/users.csv"))
   users_map = {
     for u in local.users_csv : lower(u.Upn) => u
   }
-  users_to_create = local.users_map
-
-  # Map UPN to object ID for all created users
-  user_object_ids = {
-    for upn, user in azuread_user.users : upn => user.object_id
+  users_existing = {
+    for u in data.azuread_users.existing.users : lower(u.user_principal_name) => { object_id = u.object_id, upn = u.user_principal_name }
   }
-
+  users_to_create = {
+    for k, v in local.users_map : k => v
+  }
+  # Map UPN to object ID for all users (created and existing)
+  user_object_ids = {
+    for upn, user in merge(local.users_existing, azuread_user.users) : lower(upn) => user.object_id
+  }
   # Map user UPN to their manager's UPN (only non-empty)
   user_managers = {
-    for upn, user in local.users_map : upn => lower(user.ManagerUpn)
+    for upn, user in local.users_map : lower(upn) => lower(user.ManagerUpn)
     if try(user.ManagerUpn, "") != ""
   }
 }
@@ -32,6 +38,9 @@ resource "azuread_user" "users" {
   other_mails           = [for email in [for e in split(",", each.value.OtherEmail) : trimspace(e) if trimspace(e) != ""] : email]
   password              = "Th3 specified password does not comply with password complexity requirements!!"
   force_password_change = false #TODO: change to true after demonstration
+  lifecycle {
+    ignore_changes = [manager_id]
+  }
 }
 
 resource "msgraph_resource_action" "assign_managers" {
