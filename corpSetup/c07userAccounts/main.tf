@@ -93,7 +93,7 @@ locals {
   # Resolve membership IDs from all known users (existing + managed/created).
   all_user_object_ids = merge(
     local.existing_user_object_ids,
-    { for upn, u in azuread_user.users : upn => u.object_id }
+    { for upn, u in azuread_user.users : lower(upn) => u.object_id }
   )
 
   # Flatten users.csv into user -> eligible role pairs.
