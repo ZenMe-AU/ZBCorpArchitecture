@@ -1,3 +1,5 @@
+// code is not being used. create access pass manually
+
 // Create temporary access pass for users
 resource "msgraph_resource_action" "temporary_access_pass" {
   for_each = local.temporary_access_pass_users
@@ -35,6 +37,10 @@ locals {
       access_pass_code = msgraph_resource_action.temporary_access_pass[upn].output.temporary_access_pass
     }
   ]
+
+  temporary_access_pass_users = {
+    for upn, user in local.users_map : upn => user
+  }
 }
 
 resource "local_file" "apass_csv" {

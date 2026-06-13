@@ -2,8 +2,15 @@ data "azuread_users" "existing" {
   return_all = true
 }
 
+// check if domain is verified and is the root domain (default domain)
+data "azuread_domains" "primary" {
+  only_default = true
+}
+
 locals {
+  # loads users.csv -> used to create azuread_user
   users_csv = csvdecode(file("${path.module}/users.csv"))
+  # map users by UPN from CSV
   users_map = {
     for u in local.users_csv : lower(u.Upn) => u
   }
@@ -52,4 +59,31 @@ resource "msgraph_resource_action" "assign_managers" {
     "@odata.id" = "https://graph.microsoft.com/v1.0/users/${local.user_object_ids[each.value]}"
   }
   depends_on = [azuread_user.users]
+}
+
+// enables FIDO2 for all users
+resource "msgraph_update_resource" "enable_fido2" {
+  url         = "policies/authenticationMethodsPolicy/authenticationMethodConfigurations/Fido2"
+  api_version = "v1.0"
+  body = {
+    state = "enabled"
+    includeTargets = [
+      {
+        "@odata.type"          = "#microsoft.graph.authenticationMethodTarget"
+        id                      = "all_users"
+        targetType              = "group"
+        isRegistrationRequired  = false
+      }
+    ]
+  }
+}
+
+output "created_users" {
+  description = "Created users keyed by UPN for post-apply CSV export"
+  value = {
+    for upn, u in azuread_user.users : upn => {
+      user_principal_name = u.user_principal_name
+      object_id           = u.object_id
+    }
+  }
 }
