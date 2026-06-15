@@ -333,11 +333,12 @@ jobs:
               --arg name "$STAGE_NAME" \
               'map(select(.name==$name)) | first // {} |
                {
-                 deployStatus:  (.deployStatus  // null),
-                 deployRunId:   (.deployRunId   // null),
-                 deployedAt:    (.deployedAt    // null),
-                 deployLogId:   (.deployLogId   // null),
-                 deployLogUrl:  (.deployLogUrl  // null)
+                 deployStatus:    (.deployStatus    // null),
+                 deployRunId:     (.deployRunId     // null),
+                 deployPlanRunId: (.deployPlanRunId // null),
+                 deployedAt:      (.deployedAt      // null),
+                 deployLogId:     (.deployLogId     // null),
+                 deployLogUrl:    (.deployLogUrl    // null)
                }')
 
             UPDATED=$(jq \

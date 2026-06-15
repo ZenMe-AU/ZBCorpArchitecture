@@ -123,12 +123,14 @@ jobs:
                     --arg dir "${{ inputs.dir }}" \
                     --arg status "$STATUS" \
                     --arg deployRunId "${{ github.run_id }}" \
+                    --arg deployPlanRunId "${{ inputs.run_id }}" \
                     --argjson deployedAt "$TS" \
                     --argjson deployLogId "${LOG_ID:-null}" \
                     --arg deployLogUrl "$LOG_URL" \
                     '.stages = [.stages[] | if .name == $dir then . + {
                       deployStatus: $status,
                       deployRunId: $deployRunId,
+                      deployPlanRunId: $deployPlanRunId,
                       deployedAt: $deployedAt,
                       deployLogId: $deployLogId,
                       deployLogUrl: (if $deployLogUrl == "" then null else $deployLogUrl end)
