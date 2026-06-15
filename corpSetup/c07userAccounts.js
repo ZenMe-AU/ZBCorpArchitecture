@@ -30,11 +30,11 @@ function exportCreatedUsersCsv(workingDirName) {
     cwd: workingDirName,
   }).trim();
 
-  // Build CSV rows with username, UPN, object id, and password.
+  // Build CSV rows with username, UPN, and object id.
   const createdUsers = JSON.parse(outputJson);
-  const header = ["username", "user_principal_name", "object_id", "password"].join(",");
+  const header = ["username", "user_principal_name", "object_id"].join(",");
   const rows = Object.entries(createdUsers).map(([username, details]) => {
-    return [username, details.user_principal_name, details.object_id, details.password].map(csvEscape).join(",");
+    return [username, details.user_principal_name, details.object_id].map(csvEscape).join(",");
   });
 
   // Write CSV to the c07 Terraform folder.
