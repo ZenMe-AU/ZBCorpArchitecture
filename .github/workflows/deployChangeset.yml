@@ -93,6 +93,7 @@ jobs:
               working-directory: stage
               shell: bash
               run: |
+                  find .terraform/providers -name "terraform-provider-*" -type f -exec chmod +x {} \; 2>/dev/null || true
                   terraform init > /tmp/tf_output.txt 2>&1
                   terraform apply -auto-approve tfplan >> /tmp/tf_output.txt 2>&1
 
