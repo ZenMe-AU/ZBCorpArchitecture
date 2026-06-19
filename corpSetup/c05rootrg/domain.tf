@@ -75,7 +75,9 @@ data "msgraph_resource_action" "dns_name_verify" {
     records = "value"
   }
 
-  count = local.domain_exists ? 0 : 1
+  # Only fetch when domain exists but is not yet verified.
+  # If domain doesn't exist yet, create_domain resource handles creation first (separate apply).
+  count = local.domain_exists && !local.domain_verified ? 1 : 0
 
   depends_on = [msgraph_resource_action.create_domain]
 }
