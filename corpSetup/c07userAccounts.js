@@ -146,13 +146,13 @@ function main(corpEnvFile) {
       shell: true,
       cwd: resolve(__dirname, workingDirName),
     });
+    // Step 7: Export users and generated passwords to CSV.
+    exportCreatedUsersCsv(workingDirName);
   }
 
-  // Step 7: Export users and generated passwords to CSV.
-  exportCreatedUsersCsv(workingDirName);
+
 
   // Users and generated passwords are create-only inputs; stop managing them.
-  // Using stdio: "pipe" traps the scary red text so it never prints to your screen.
   try {
     execSync("terraform state rm azuread_user.users", {
       stdio: "pipe", 
