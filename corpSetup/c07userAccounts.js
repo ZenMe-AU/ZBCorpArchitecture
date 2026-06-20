@@ -130,21 +130,23 @@ function main(corpEnvFile) {
   // Step 5: Initialize Terraform for c07userAccounts.
   execSync("terraform init", { stdio: "inherit", shell: true, cwd: workingDirName });
 
+  // Step 6: Plan or apply resources.
   if (planOnly) {
-    execSync("terraform plan", {
+    console.log("Planning Terraform changes to tfplan");
+    execSync(`terraform plan -out=tfplan`, {
       stdio: "inherit",
       shell: true,
-      cwd: workingDirName,
+      cwd: resolve(__dirname, workingDirName),
     });
-    return subscriptionId;
+  } else {
+    console.log("Applying Terraform changes.");
+    // Run terraform
+    execSync(`terraform apply ${autoApprove ? " -auto-approve" : ""}`, {
+      stdio: "inherit",
+      shell: true,
+      cwd: resolve(__dirname, workingDirName),
+    });
   }
-
-  // Step 6: Apply resources.
-  execSync(`terraform apply`, {
-    stdio: "inherit",
-    shell: true,
-    cwd: workingDirName,
-  });
 
   // Step 7: Export users and generated passwords to CSV.
   exportCreatedUsersCsv(workingDirName);
