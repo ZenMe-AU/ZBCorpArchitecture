@@ -1,0 +1,27 @@
+name: Plan changes
+#  Compare environment designed state and list required changes
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  plan-changes:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Azure CLI script
+        uses: azure/cli@v2
+        with:
+          azcliversion: latest
+          inlineScript: |
+            az login --use-device-code
+
+      - name: Azure CLI script
+        uses: azure/cli@v2
+        with:
+          azcliversion: latest
+          inlineScript: |
+            az account show
