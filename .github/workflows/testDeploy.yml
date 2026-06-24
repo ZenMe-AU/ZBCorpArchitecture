@@ -4,15 +4,15 @@ on:
   workflow_dispatch:
     inputs:
       aws_access_key_id:
-        description: 'AWS Access Key ID'
+        description: "AWS Access Key ID"
         required: true
         type: string
       aws_secret_access_key:
-        description: 'AWS Secret Access Key'
+        description: "AWS Secret Access Key"
         required: true
         type: string
       aws_session_token:
-        description: 'AWS Session Token'
+        description: "AWS Session Token"
         required: true
         type: string
 
@@ -21,7 +21,7 @@ permissions:
   id-token: write
 
 jobs:
-  plan-changes:
+  test-aws:
     runs-on: ubuntu-latest
     steps:
       - name: Mask AWS credentials
@@ -40,18 +40,18 @@ jobs:
       - name: Verify AWS identity
         run: aws sts get-caller-identity
 
+  test-azure:
+    runs-on: ubuntu-latest
+    steps:
       - name: Azure login
         uses: azure/cli@v2
-        env:
-          TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
-          SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+        # env:
+        #   TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+        #   SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
         with:
           azcliversion: latest
           inlineScript: |
-            LOGIN_ARGS="--use-device-code"
-            [ -n "$TENANT_ID" ] && LOGIN_ARGS="$LOGIN_ARGS --tenant $TENANT_ID"
-            az login $LOGIN_ARGS
-            [ -n "$SUBSCRIPTION_ID" ] && az account set --subscription $SUBSCRIPTION_ID
+            az login --use-device-code
 
       - name: Verify Azure identity
         uses: azure/cli@v2
