@@ -30,11 +30,11 @@ function exportCreatedUsersCsv(workingDirName) {
     cwd: workingDirName,
   }).trim();
 
-  // Build CSV rows with username, UPN, object id, and password.
+  // Build CSV rows with username, UPN, and object id.
   const createdUsers = JSON.parse(outputJson);
-  const header = ["username", "user_principal_name", "object_id", "password"].join(",");
+  const header = ["username", "user_principal_name", "object_id"].join(",");
   const rows = Object.entries(createdUsers).map(([username, details]) => {
-    return [username, details.user_principal_name, details.object_id, details.password].map(csvEscape).join(",");
+    return [username, details.user_principal_name, details.object_id].map(csvEscape).join(",");
   });
 
   // Write CSV to the c07 Terraform folder.
@@ -101,12 +101,12 @@ function main(corpEnvFile) {
     throw new Error("NAME is not set in corp.env.");
   }
 
-  const clientId = env.get("client_id");
-  const clientSecret = env.get("client_secret");
-  const tenantId = env.get("tenant_id");
-  if (!clientId || !clientSecret || !tenantId) {
-    throw new Error("client_id, client_secret, and tenant_id must be set in corp.env.");
-  }
+  // const clientId = env.get("client_id");
+  // const clientSecret = env.get("client_secret");
+  // const tenantId = env.get("tenant_id");
+  // if (!clientId || !clientSecret || !tenantId) {
+  //   throw new Error("client_id, client_secret, and tenant_id must be set in corp.env.");
+  // }
 
   const resourceGroupName = getResourceGroupName("root", corpName);
 
@@ -114,43 +114,45 @@ function main(corpEnvFile) {
   setTfVar("subscription_id", subscriptionId);
   setTfVar("dns_name", dnsName);
   setTfVar("resource_group_name", resourceGroupName);
-  setTfVar("client_id", clientId);
-  setTfVar("client_secret", clientSecret);
-  setTfVar("tenant_id", tenantId);
+  // setTfVar("client_id", clientId);
+  // setTfVar("client_secret", clientSecret);
+  // setTfVar("tenant_id", tenantId);
   // setTfVar("domain", dnsName);
 
   console.log("workingDir:", workingDirName);
   console.log("subscription_id:", subscriptionId);
   console.log("dns_name:", dnsName);
   console.log("resource_group_name:", resourceGroupName);
-  console.log("client_id:", clientId);
+  // console.log("client_id:", clientId);
   //console.log("client_secret:", clientSecret);
-  console.log("tenant_id:", tenantId);
+  // console.log("tenant_id:", tenantId);
 
   // Step 5: Initialize Terraform for c07userAccounts.
   execSync("terraform init", { stdio: "inherit", shell: true, cwd: workingDirName });
 
+  // Step 6: Plan or apply resources.
   if (planOnly) {
-    execSync("terraform plan", {
+    console.log("Planning Terraform changes to tfplan");
+    execSync(`terraform plan -out=tfplan`, {
       stdio: "inherit",
       shell: true,
-      cwd: workingDirName,
+      cwd: resolve(__dirname, workingDirName),
     });
-    return subscriptionId;
+  } else {
+    console.log("Applying Terraform changes.");
+    // Run terraform
+    execSync(`terraform apply ${autoApprove ? " -auto-approve" : ""}`, {
+      stdio: "inherit",
+      shell: true,
+      cwd: resolve(__dirname, workingDirName),
+    });
+    // Step 7: Export users and generated passwords to CSV.
+    exportCreatedUsersCsv(workingDirName);
   }
 
-  // Step 6: Apply resources.
-  execSync(`terraform apply`, {
-    stdio: "inherit",
-    shell: true,
-    cwd: workingDirName,
-  });
 
-  // Step 7: Export users and generated passwords to CSV.
-  exportCreatedUsersCsv(workingDirName);
 
   // Users and generated passwords are create-only inputs; stop managing them.
-  // Using stdio: "pipe" traps the scary red text so it never prints to your screen.
   try {
     execSync("terraform state rm azuread_user.users", {
       stdio: "pipe", 

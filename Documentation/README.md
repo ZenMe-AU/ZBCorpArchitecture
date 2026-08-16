@@ -71,6 +71,11 @@
     (make sure to give the service provider your dns domain located inside of corp.env)
     1. once the domain name server details have been stored on the provider's end you are finished with executing c05
 
+1. Execute c07
+    1. Execute c07. Run the following in the terminal:
+    ``` ps
+    node initCorpEnvDeploy.js --stage c07
+    ```
     
 1. Execute c20
     1. Follow the instructions in "How to create a Free AWS account.docx"

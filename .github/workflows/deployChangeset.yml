@@ -75,7 +75,7 @@ jobs:
               continue-on-error: true
               uses: aws-actions/configure-aws-credentials@v4
               with:
-                  role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/${{ vars.AWS_ROLE_NAME }}
+                  role-to-assume: ${{ vars.AWS_ROLE_ARN }}
                   aws-region: us-east-1
 
             - name: Set Terraform env
@@ -93,6 +93,7 @@ jobs:
               working-directory: stage
               shell: bash
               run: |
+                  find .terraform/providers -name "terraform-provider-*" -type f -exec chmod +x {} \; 2>/dev/null || true
                   terraform init > /tmp/tf_output.txt 2>&1
                   terraform apply -auto-approve tfplan >> /tmp/tf_output.txt 2>&1
 
@@ -123,12 +124,14 @@ jobs:
                     --arg dir "${{ inputs.dir }}" \
                     --arg status "$STATUS" \
                     --arg deployRunId "${{ github.run_id }}" \
+                    --arg deployPlanRunId "${{ inputs.run_id }}" \
                     --argjson deployedAt "$TS" \
                     --argjson deployLogId "${LOG_ID:-null}" \
                     --arg deployLogUrl "$LOG_URL" \
                     '.stages = [.stages[] | if .name == $dir then . + {
                       deployStatus: $status,
                       deployRunId: $deployRunId,
+                      deployPlanRunId: $deployPlanRunId,
                       deployedAt: $deployedAt,
                       deployLogId: $deployLogId,
                       deployLogUrl: (if $deployLogUrl == "" then null else $deployLogUrl end)

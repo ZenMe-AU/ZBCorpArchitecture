@@ -105,21 +105,21 @@ jobs:
 
       - name: Azure Login
         id: az_login
-        if: vars.AZURE_CLIENT_ID != '' && vars.AZURE_TENANT_ID != '' && vars.AZURE_SUBSCRIPTION_ID != ''
+        if: vars.AZURE_PLAN_CLIENT_ID != '' && vars.AZURE_TENANT_ID != '' && vars.AZURE_SUBSCRIPTION_ID != ''
         continue-on-error: true
         uses: azure/login@v2
         with:
-          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          client-id: ${{ vars.AZURE_PLAN_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
       - name: AWS Login
         id: aws_login
-        if: vars.AWS_ACCOUNT_ID != '' && vars.AWS_ROLE_NAME != ''
+        if: vars.AWS_ROLE_ARN != ''
         continue-on-error: true
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/${{ vars.AWS_ROLE_NAME }}
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
           aws-region: us-east-1
 
       - name: Set outputs
@@ -132,7 +132,7 @@ jobs:
         if: steps.az_login.outcome == 'success'
         shell: bash
         run: |
-          echo "ARM_CLIENT_ID=${{ vars.AZURE_CLIENT_ID }}" >> $GITHUB_ENV
+          echo "ARM_CLIENT_ID=${{ vars.AZURE_PLAN_CLIENT_ID }}" >> $GITHUB_ENV
           echo "ARM_TENANT_ID=${{ vars.AZURE_TENANT_ID }}" >> $GITHUB_ENV
           echo "ARM_SUBSCRIPTION_ID=${{ vars.AZURE_SUBSCRIPTION_ID }}" >> $GITHUB_ENV
           echo "ARM_USE_OIDC=true" >> $GITHUB_ENV
@@ -333,11 +333,12 @@ jobs:
               --arg name "$STAGE_NAME" \
               'map(select(.name==$name)) | first // {} |
                {
-                 deployStatus:  (.deployStatus  // null),
-                 deployRunId:   (.deployRunId   // null),
-                 deployedAt:    (.deployedAt    // null),
-                 deployLogId:   (.deployLogId   // null),
-                 deployLogUrl:  (.deployLogUrl  // null)
+                 deployStatus:    (.deployStatus    // null),
+                 deployRunId:     (.deployRunId     // null),
+                 deployPlanRunId: (.deployPlanRunId // null),
+                 deployedAt:      (.deployedAt      // null),
+                 deployLogId:     (.deployLogId     // null),
+                 deployLogUrl:    (.deployLogUrl    // null)
                }')
 
             UPDATED=$(jq \

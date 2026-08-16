@@ -168,7 +168,7 @@ After all three steps are successfully submitted:
 
 23. Expand the **Domain** section check the box next to Domain.ReadWrite.All, and click **Add permissions** at the bottom
 
-24. do this again for the permission "UserAuthMethod-TAP.ReadWrite.All"
+24. do this again for the permission "UserAuthMethod-TAP.ReadWrite.All" and for permission "User.ReadWrite.All"
 
 25. You will return to the permissions table, and the status will show *Not granted for [Your Org]*
 
