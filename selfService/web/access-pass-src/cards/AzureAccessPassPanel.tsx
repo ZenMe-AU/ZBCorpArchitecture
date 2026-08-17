@@ -12,7 +12,7 @@ import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
 import RadioButtonUncheckedIcon from "@mui/icons-material/RadioButtonUnchecked";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
-import type { useAzureAccessPass, SetupStep } from "../hooks/useAzureAccessPass";
+import type { useAzureAccessPass, SetupStep } from "../hooks/useAccessPass";
 import { CLOUD_DOCS } from "../config/docsConfig";
 
 const mono = { fontFamily: "'IBM Plex Mono', monospace" };
@@ -97,6 +97,9 @@ export default function AzureAccessPassCard({
       : steps;
   const hasFinishedOrErroredStep = hydratedSelectedUserSteps.some((s) => s.status === "done" || s.status === "error");
   const showingSelectedUserSteps = hydratedSelectedUserSteps.length > 0 && (running || showingSelectedUserPass || hasFinishedOrErroredStep);
+  const selectedUserRunSucceeded =
+    showingSelectedUserPass && hydratedSelectedUserSteps.length > 0 && hydratedSelectedUserSteps.every((s) => s.status === "done");
+  const shouldShowTryAgain = !running && showingSelectedUserSteps && !selectedUserRunSucceeded;
 
   return (
     <>
@@ -156,7 +159,7 @@ export default function AzureAccessPassCard({
           <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
             <Typography sx={{ fontSize: "0.78rem", color: "#64748b" }}>
               Signed in as{" "}
-              <Box component="span" data-testid="azure-account-username" sx={{ fontWeight: 600, ...mono }}>
+              <Box component="span" data-id="txtAzureAccount" sx={{ fontWeight: 600, ...mono }}>
                 {azureAccount.username}
               </Box>
             </Typography>
@@ -227,7 +230,10 @@ export default function AzureAccessPassCard({
 
               <Button
                 variant="contained"
-                onClick={run}
+                onClick={() => {
+                  reset();
+                  void run();
+                }}
                 disabled={disabled || !selectedManagerUserId}
                 sx={{
                   alignSelf: "flex-start",
@@ -255,7 +261,7 @@ export default function AzureAccessPassCard({
                 <StepRow key={s.id} step={s} />
               ))}
               {running && <Typography sx={{ fontSize: "0.68rem", color: "#94a3b8", ...mono, mt: 0.5 }}>Running...</Typography>}
-              {!running && (
+              {shouldShowTryAgain && (
                 <Button
                   size="small"
                   onClick={reset}
@@ -291,7 +297,7 @@ export default function AzureAccessPassCard({
           {showingSelectedUserPass && (
             <Box sx={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "8px", px: 2, py: 1.5 }}>
               <Typography sx={{ ...labelSx, mb: 1, color: "#15803d" }}>Temporary Access Pass</Typography>
-              <CopyRow label="ACCESS_PASS_PASSWORD_VALUE" value={result.accessPassValue} masked />
+              <CopyRow label="New Temporary Access Pass:" value={result.accessPassValue} masked />
             </Box>
           )}
 
