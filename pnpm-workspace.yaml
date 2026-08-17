@@ -1,12 +1,7 @@
 packages:
   - corpSetup/c25cloudfront/source/authGuardLambdaEdge
   - corpSetup/c25cloudfront/source/loginApp
+  - selfService/web
 onlyBuiltDependencies:
-  - snyk25h
-  - snyk25h6
-  - snyk
-  - snyk@1.1300.2
-  - scarf
-  - azure-functions-core-tools
   - esbuild
-  - protobufjs
+  - azure-functions-core-tools
