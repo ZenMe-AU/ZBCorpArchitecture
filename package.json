@@ -4,9 +4,7 @@
   "type": "module",
   "description": "",
   "private": true,
-  "workspaces": [
-
-  ],
+  "workspaces": [],
   "scripts": {
     "prepare": "husky"
   },
@@ -30,16 +28,13 @@
     "lint-staged": "^16.2.6",
     "minimist": "^1.2.8",
     "prettier": "^3.6.2",
-    "snyk": "^1.1300.2",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.46.2",
     "unique-names-generator": "^4.7.1"
   },
   "pnpm": {
-    "overrides": {
-    },
-    "onlyBuiltDependencies": [
-    ]
+    "overrides": {},
+    "onlyBuiltDependencies": []
   },
   "engines": {
     "node": ">=20.0.0"
