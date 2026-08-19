@@ -81,21 +81,12 @@ jobs:
             cp artifacts/$ENV_NAME $ENV_PATH
           fi
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
+      - name: Install node and pnpm
+        uses: pnpm/setup@v1
         with:
-          version: 10
-          run_install: false
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: "pnpm"
-
-      - name: Install dependencies
-        shell: bash
-        run: pnpm install --frozen-lockfile
+          version: 11
+          runtime: node@22
+          cache: true
 
       - name: Install Terraform
         uses: hashicorp/setup-terraform@v2
