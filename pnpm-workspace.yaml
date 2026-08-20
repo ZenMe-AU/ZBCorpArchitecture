@@ -2,6 +2,13 @@ packages:
   - corpSetup/c25cloudfront/source/authGuardLambdaEdge
   - corpSetup/c25cloudfront/source/loginApp
   - selfService/web
+injectWorkspacePackages: true
+# allowBuilds is the pnpm 11 setting; onlyBuiltDependencies below is its pnpm 10
+# equivalent and is no longer read by pnpm 11. Keep the two lists in sync until
+# every developer is on pnpm 11, then delete onlyBuiltDependencies.
+allowBuilds:
+  esbuild: true
+  azure-functions-core-tools: true
 onlyBuiltDependencies:
   - esbuild
   - azure-functions-core-tools
