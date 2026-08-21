@@ -1,0 +1,55 @@
+{
+    "$schema": "https://unpkg.com/knip@latest/schema.json",
+    "workspaces": {
+        ".": {
+            "entry": [
+                "corpSetup/c*.js"
+            ],
+            "project": [
+                "corpSetup/**/*.{js,cjs,mjs}",
+                "util/**/*.{js,cjs,mjs}",
+                "!corpSetup/c20awsentrasso/wait_metadata_ready.mjs",
+                "!corpSetup/c25cloudfront/source/rewriteHeaderLambdaEdge/**",
+                "!util/envSetup.cjs"
+            ],
+            "ignoreBinaries": [
+                "terraform"
+            ]
+        },
+        "corpSetup/c25cloudfront/source/authGuardLambdaEdge": {
+            "project": [
+                "**/*.{js,mjs,cjs}"
+            ],
+            "ignoreUnresolved": [
+                "./config.mjs"
+            ]
+        },
+        "corpSetup/c25cloudfront/source/loginApp": {
+            "project": [
+                "src/**/*.{ts,tsx,js,jsx}",
+                "!src/App copy.tsx"
+            ]
+        },
+        "selfService/web": {
+            "project": [
+                "access-pass-src/**/*.{ts,tsx,js,jsx}",
+                "!access-pass-src/api/**",
+                "!access-pass-src/config/awsConfig.ts",
+                "!access-pass-src/config/azureConfig.ts",
+                "!access-pass-src/config/planConfig.ts",
+                "!access-pass-src/logic/env.ts",
+                "!access-pass-src/logic/pipeline.ts",
+                "!access-pass-src/logic/pkce.ts",
+                "!access-pass-src/logic/plan.ts",
+                "!access-pass-src/logic/stage.ts",
+                "!access-pass-src/logic/variables.ts",
+                "!access-pass-src/cards/AzureAccessPassPanel.tsx",
+                "!access-pass-src/components/RestoreToast.tsx",
+                "!access-pass-src/components/SecretsCard.tsx",
+                "!access-pass-src/components/SessionOverlay.tsx",
+                "!access-pass-src/components/SummaryChip.tsx",
+                "!access-pass-src/components/VariablesCard.tsx"
+            ]
+        }
+    }
+}
