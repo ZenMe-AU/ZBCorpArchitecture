@@ -1,14 +1,7 @@
 import { useState } from "react";
-import {
-  Autocomplete,
-  Box,
-  Button,
-  CircularProgress,
-  TextField,
-  Typography,
-} from "@mui/material";
-import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
-import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
+import { Autocomplete, Box, Button, CircularProgress, TextField, Typography } from "@mui/material";
+import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutlined";
+import ErrorOutlineIcon from "@mui/icons-material/ErrorOutlined";
 import RadioButtonUncheckedIcon from "@mui/icons-material/RadioButtonUnchecked";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
@@ -174,7 +167,6 @@ export default function AzureAccessPassCard({
 
           {/* Entra user selector */}
           {
-            (
             <Box
               sx={{
                 background: "#fef9c3",
@@ -219,7 +211,6 @@ export default function AzureAccessPassCard({
                 />
               </Box>
             </Box>
-            )
           }
 
           {subsError && <Typography sx={{ fontSize: "0.72rem", color: "#ef4444", ...mono }}>{subsError}</Typography>}
@@ -227,7 +218,6 @@ export default function AzureAccessPassCard({
           {/* Config */}
           {!showingSelectedUserSteps && (
             <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-
               <Button
                 variant="contained"
                 onClick={() => {
@@ -284,9 +274,7 @@ export default function AzureAccessPassCard({
           {/* Consent warning */}
           {consentFailed && (
             <Box sx={{ background: "#fef9c3", border: "1px solid #fde047", borderRadius: "8px", px: 2, py: 1.25 }}>
-              <Typography sx={{ fontSize: "0.78rem", color: "#713f12", ...mono, fontWeight: 600 }}>
-                ⚠ Admin consent failed — grant manually
-              </Typography>
+              <Typography sx={{ fontSize: "0.78rem", color: "#713f12", ...mono, fontWeight: 600 }}>⚠ Admin consent failed — grant manually</Typography>
               <Typography sx={{ fontSize: "0.72rem", color: "#854d0e", ...mono, mt: 0.5 }}>
                 Entra ID → App registrations → {appName} → API permissions → Grant admin consent for [tenant]
               </Typography>
@@ -302,9 +290,7 @@ export default function AzureAccessPassCard({
           )}
 
           {result && !showingSelectedUserPass && (
-            <Typography sx={{ fontSize: "0.72rem", color: "#64748b", ...mono }}>
-              No access pass value is currently shown for this selected user.
-            </Typography>
+            <Typography sx={{ fontSize: "0.72rem", color: "#64748b", ...mono }}>No access pass value is currently shown for this selected user.</Typography>
           )}
         </Box>
       )}

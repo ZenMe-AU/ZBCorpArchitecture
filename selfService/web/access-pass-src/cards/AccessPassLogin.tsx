@@ -1,4 +1,4 @@
-import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
+import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutlined";
 import type { CardStatus } from "../types";
 import type { useAzureAccessPass } from "../hooks/useAccessPass";
 import StepWrapper from "../components/StepWrapper";
@@ -35,12 +35,10 @@ export default function AccessPassLogin({ status, expanded, onToggle, disabled, 
       status={status}
       expanded={expanded}
       onToggle={() => {
-        logEvent("toggleAccessPassLoginCard", {parentId: "XXXXXXX"});
+        logEvent("toggleAccessPassLoginCard", { parentId: "XXXXXXX" });
         onToggle();
       }}
-      action={
-        status === "complete" ? <CheckCircleOutlineIcon sx={{ fontSize: 16, color: "#16a34a" }} /> : null
-      }
+      action={status === "complete" ? <CheckCircleOutlineIcon sx={{ fontSize: 16, color: "#16a34a" }} /> : null}
     >
       <AccessPassLoginCard {...auth} disabled={disabled} />
     </StepWrapper>

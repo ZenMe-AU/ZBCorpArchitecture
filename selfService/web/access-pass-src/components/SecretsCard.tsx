@@ -1,21 +1,9 @@
 import { useState } from "react";
-import {
-  Box,
-  Button,
-  Dialog,
-  DialogContent,
-  DialogTitle,
-  Divider,
-  IconButton,
-  InputAdornment,
-  TextField,
-  Tooltip,
-  Typography,
-} from "@mui/material";
+import { Box, Button, Dialog, DialogContent, DialogTitle, Divider, IconButton, InputAdornment, TextField, Tooltip, Typography } from "@mui/material";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import CloseIcon from "@mui/icons-material/Close";
 import EditIcon from "@mui/icons-material/Edit";
-import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
+import ErrorOutlineIcon from "@mui/icons-material/ErrorOutlined";
 import RadioButtonCheckedIcon from "@mui/icons-material/RadioButtonChecked";
 import RadioButtonUncheckedIcon from "@mui/icons-material/RadioButtonUnchecked";
 import VisibilityIcon from "@mui/icons-material/Visibility";
@@ -199,11 +187,7 @@ function SecretKeyRow({
             {showValue ? <VisibilityOffIcon sx={{ fontSize: 13 }} /> : <VisibilityIcon sx={{ fontSize: 13 }} />}
           </IconButton>
           <Tooltip title="Discard change">
-            <IconButton
-              size="small"
-              onClick={() => onCancelPending(secretKey)}
-              sx={{ color: "#94a3b8", p: 0.25, "&:hover": { color: "#ef4444" } }}
-            >
+            <IconButton size="small" onClick={() => onCancelPending(secretKey)} sx={{ color: "#94a3b8", p: 0.25, "&:hover": { color: "#ef4444" } }}>
               <CloseIcon sx={{ fontSize: 12 }} />
             </IconButton>
           </Tooltip>
@@ -215,9 +199,7 @@ function SecretKeyRow({
 
       {/* Just updated */}
       {isSuccess && (
-        <Typography sx={{ fontSize: "0.62rem", color: "#16a34a", fontFamily: "'IBM Plex Mono', monospace", whiteSpace: "nowrap" }}>
-          just updated
-        </Typography>
+        <Typography sx={{ fontSize: "0.62rem", color: "#16a34a", fontFamily: "'IBM Plex Mono', monospace", whiteSpace: "nowrap" }}>just updated</Typography>
       )}
 
       {/* Update error */}
@@ -277,9 +259,7 @@ function SecretDialog({
     >
       <DialogTitle sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", pb: 1 }}>
         <Box>
-          <Typography sx={{ fontFamily: "'IBM Plex Mono', monospace", fontWeight: 700, fontSize: "0.9rem", color: "#0f172a" }}>
-            {secretKey}
-          </Typography>
+          <Typography sx={{ fontFamily: "'IBM Plex Mono', monospace", fontWeight: 700, fontSize: "0.9rem", color: "#0f172a" }}>{secretKey}</Typography>
           <Typography sx={{ fontSize: "0.72rem", color: "#64748b", mt: 0.25 }}>Enter the secret value</Typography>
         </Box>
         <IconButton onClick={handleClose} size="small" sx={{ color: "#94a3b8" }}>
@@ -345,15 +325,7 @@ type Props = {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function SecretsCard({
-  requiredKeys,
-  presentKeys,
-  secretsStatus,
-  pendingSecrets,
-  onSetPending,
-  onCancelPending,
-  upsertStatuses,
-}: Props) {
+export default function SecretsCard({ requiredKeys, presentKeys, secretsStatus, pendingSecrets, onSetPending, onCancelPending, upsertStatuses }: Props) {
   const [dialogKey, setDialogKey] = useState<string | null>(null);
 
   return (

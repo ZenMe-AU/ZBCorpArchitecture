@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { Box, Button, CircularProgress, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Typography } from "@mui/material";
-import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
-import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
+import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutlined";
+import ErrorOutlineIcon from "@mui/icons-material/ErrorOutlined";
 import RadioButtonUncheckedIcon from "@mui/icons-material/RadioButtonUnchecked";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import type { useAzureAccessPass, SetupStep } from "../hooks/useAccessPass";
@@ -232,66 +232,68 @@ export default function AzureAccessPassCard({
               gap: 1.25,
             }}
           >
-              <Box>
-                <Typography sx={{ fontSize: "0.78rem", color: "#0f172a", ...mono, fontWeight: 600 }}>Select Entra user</Typography>
-              </Box>
-              <Box sx={{ display: "flex", gap: 1, alignItems: "flex-start", flexDirection: "column", width: "100%" }}>
-                {managerUsersLoading && (
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    <CircularProgress size={14} sx={{ color: "#2563eb" }} />
-                    <Typography sx={{ fontSize: "0.72rem", color: "#475569", ...mono }}>Loading users...</Typography>
-                  </Box>
-                )}
+            <Box>
+              <Typography sx={{ fontSize: "0.78rem", color: "#0f172a", ...mono, fontWeight: 600 }}>Select Entra user</Typography>
+            </Box>
+            <Box sx={{ display: "flex", gap: 1, alignItems: "flex-start", flexDirection: "column", width: "100%" }}>
+              {managerUsersLoading && (
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                  <CircularProgress size={14} sx={{ color: "#2563eb" }} />
+                  <Typography sx={{ fontSize: "0.72rem", color: "#475569", ...mono }}>Loading users...</Typography>
+                </Box>
+              )}
 
-                {!managerUsersLoading && managerUsers.length > 0 && (
-                  <TableContainer sx={{ border: "1px solid #e2e8f0", borderRadius: "8px", background: "#ffffff", width: "100%", overflowX: "auto" }}>
-                    <Table size="small" sx={{ minWidth: 640 }}>
-                      <TableHead>
-                        <TableRow>
-                          <TableCell sx={{ ...mono, fontSize: "0.68rem", color: "#334155", fontWeight: 700 }}>Name</TableCell>
-                          <TableCell sx={{ ...mono, fontSize: "0.68rem", color: "#334155", fontWeight: 700 }}>UPN</TableCell>
-                          <TableCell align="right" sx={{ ...mono, fontSize: "0.68rem", color: "#334155", fontWeight: 700 }}>Action</TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {pagedUsers.map((user) => {
-                          const isCurrentResult = result?.targetUserId === user.id;
-                          const isCreatingThisUser = creatingUserId === user.id && running;
-                          const savedPass = passValuesByUserId[user.id];
-                          const isCompletedUser = !!completedByUserId[user.id];
-                          const isDeliveryConfirmed = !!deliveryConfirmedByUserId[user.id];
-                          const rowHighlightSx = isCompletedUser ? { background: "#dbeafe" } : isCurrentResult ? { background: "#f0fdf4" } : undefined;
-                          const showingConfirmationForUser = confirmationUserId === user.id && !running;
-                          const showingInlineStepsForUser = showingSelectedUserSteps && statusUserId === user.id;
-                          return (
-                            <Fragment key={user.id}>
-                              <TableRow sx={rowHighlightSx}>
-                                <TableCell
-                                  sx={{
-                                    ...mono,
-                                    fontSize: "0.76rem",
-                                    color: "#334155",
-                                    ...(savedPass || showingInlineStepsForUser || showingConfirmationForUser ? { borderBottom: "none" } : {}),
-                                  }}
-                                >
-                                  {user.displayName}
-                                </TableCell>
-                                <TableCell
-                                  sx={{
-                                    ...mono,
-                                    fontSize: "0.72rem",
-                                    color: "#64748b",
-                                    ...(savedPass || showingInlineStepsForUser || showingConfirmationForUser ? { borderBottom: "none" } : {}),
-                                  }}
-                                >
-                                  {user.userPrincipalName || "-"}
-                                </TableCell>
-                                <TableCell
-                                  align="right"
-                                  sx={savedPass || showingInlineStepsForUser || showingConfirmationForUser ? { borderBottom: "none" } : undefined}
-                                >
-                                  <Box sx={{ display: "flex", justifyContent: "flex-end", minHeight: 28 }}>
-                                    {!showingConfirmationForUser && (
+              {!managerUsersLoading && managerUsers.length > 0 && (
+                <TableContainer sx={{ border: "1px solid #e2e8f0", borderRadius: "8px", background: "#ffffff", width: "100%", overflowX: "auto" }}>
+                  <Table size="small" sx={{ minWidth: 640 }}>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell sx={{ ...mono, fontSize: "0.68rem", color: "#334155", fontWeight: 700 }}>Name</TableCell>
+                        <TableCell sx={{ ...mono, fontSize: "0.68rem", color: "#334155", fontWeight: 700 }}>UPN</TableCell>
+                        <TableCell align="right" sx={{ ...mono, fontSize: "0.68rem", color: "#334155", fontWeight: 700 }}>
+                          Action
+                        </TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {pagedUsers.map((user) => {
+                        const isCurrentResult = result?.targetUserId === user.id;
+                        const isCreatingThisUser = creatingUserId === user.id && running;
+                        const savedPass = passValuesByUserId[user.id];
+                        const isCompletedUser = !!completedByUserId[user.id];
+                        const isDeliveryConfirmed = !!deliveryConfirmedByUserId[user.id];
+                        const rowHighlightSx = isCompletedUser ? { background: "#dbeafe" } : isCurrentResult ? { background: "#f0fdf4" } : undefined;
+                        const showingConfirmationForUser = confirmationUserId === user.id && !running;
+                        const showingInlineStepsForUser = showingSelectedUserSteps && statusUserId === user.id;
+                        return (
+                          <Fragment key={user.id}>
+                            <TableRow sx={rowHighlightSx}>
+                              <TableCell
+                                sx={{
+                                  ...mono,
+                                  fontSize: "0.76rem",
+                                  color: "#334155",
+                                  ...(savedPass || showingInlineStepsForUser || showingConfirmationForUser ? { borderBottom: "none" } : {}),
+                                }}
+                              >
+                                {user.displayName}
+                              </TableCell>
+                              <TableCell
+                                sx={{
+                                  ...mono,
+                                  fontSize: "0.72rem",
+                                  color: "#64748b",
+                                  ...(savedPass || showingInlineStepsForUser || showingConfirmationForUser ? { borderBottom: "none" } : {}),
+                                }}
+                              >
+                                {user.userPrincipalName || "-"}
+                              </TableCell>
+                              <TableCell
+                                align="right"
+                                sx={savedPass || showingInlineStepsForUser || showingConfirmationForUser ? { borderBottom: "none" } : undefined}
+                              >
+                                <Box sx={{ display: "flex", justifyContent: "flex-end", minHeight: 28 }}>
+                                  {!showingConfirmationForUser && (
                                     <Button
                                       size="small"
                                       variant="contained"
@@ -318,260 +320,258 @@ export default function AzureAccessPassCard({
                                     >
                                       {isCreatingThisUser ? "Creating..." : savedPass ? "Create Again" : "Create Access Pass"}
                                     </Button>
+                                  )}
+                                </Box>
+                              </TableCell>
+                            </TableRow>
+                            {showingConfirmationForUser && (
+                              <TableRow sx={rowHighlightSx ?? { background: "inherit" }}>
+                                <TableCell colSpan={3} sx={{ py: 0.75, px: 1.5, borderBottom: savedPass ? "none" : undefined }}>
+                                  <Box
+                                    sx={{
+                                      display: "flex",
+                                      flexDirection: "column",
+                                      gap: 0.75,
+                                      borderLeft: "2px solid #fbbf24",
+                                      pl: 1.25,
+                                    }}
+                                  >
+                                    <Typography sx={{ fontSize: "0.72rem", color: "#92400e", ...mono }}>
+                                      If you continue, all existing access for this user will be deleted and a 1 hour temorary access pass will be created.
+                                    </Typography>
+                                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
+                                      <input
+                                        type="checkbox"
+                                        checked={photoIdConfirmed}
+                                        onChange={(e) => {
+                                          const checked = e.target.checked;
+                                          setPhotoIdConfirmed(checked);
+                                          logEvent("accessPassPhotoIdCheckboxToggled", {
+                                            targetUserId: user.id,
+                                            checked,
+                                          });
+                                        }}
+                                        style={{ margin: 0, width: 14, height: 14 }}
+                                      />
+                                      <Typography sx={{ fontSize: "0.7rem", color: "#92400e", ...mono }}>
+                                        Confirm that you have viewed the photo ID and confirm it to be the person selected
+                                      </Typography>
+                                    </Box>
+                                    <Box sx={{ display: "flex", justifyContent: "flex-end", pt: 0.35 }}>
+                                      <Button
+                                        size="small"
+                                        variant="contained"
+                                        onClick={() => {
+                                          if (confirmationUserId !== user.id) {
+                                            setConfirmationUserId(user.id);
+                                            setPhotoIdConfirmed(false);
+                                            return;
+                                          }
+                                          if (!photoIdConfirmed) return;
+                                          void handleCreateForUser(user.id);
+                                        }}
+                                        disabled={disabled || running || !photoIdConfirmed}
+                                        sx={{
+                                          textTransform: "none",
+                                          ...mono,
+                                          fontSize: "0.72rem",
+                                          py: 0.35,
+                                          px: 1.2,
+                                          background: isCurrentResult ? "#16a34a" : "#2563eb",
+                                          "&:hover": { background: isCurrentResult ? "#15803d" : "#1d4ed8" },
+                                          "&.Mui-disabled": { background: "#e2e8f0", color: "#94a3b8" },
+                                        }}
+                                      >
+                                        {isCreatingThisUser ? "Creating..." : savedPass ? "Create Again" : "Create Access Pass"}
+                                      </Button>
+                                    </Box>
+                                  </Box>
+                                </TableCell>
+                              </TableRow>
+                            )}
+                            {showingInlineStepsForUser && (
+                              <TableRow sx={rowHighlightSx ?? { background: "inherit" }}>
+                                <TableCell colSpan={3} sx={{ py: 0.75, px: 1.5, borderBottom: savedPass ? "none" : undefined }}>
+                                  <Box sx={{ display: "flex", flexDirection: "column", gap: 0.25, borderLeft: "2px solid #e2e8f0", pl: 1.25 }}>
+                                    {hydratedSelectedUserSteps.map((s) => (
+                                      <StepRow key={`${user.id}-${s.id}`} step={s} />
+                                    ))}
+                                    {running && <Typography sx={{ fontSize: "0.68rem", color: "#94a3b8", ...mono, mt: 0.25 }}>Running...</Typography>}
+                                    {shouldShowTryAgain && (
+                                      <Button
+                                        size="small"
+                                        onClick={reset}
+                                        sx={{
+                                          alignSelf: "flex-start",
+                                          mt: 0.25,
+                                          textTransform: "none",
+                                          ...mono,
+                                          fontSize: "0.72rem",
+                                          color: "#64748b",
+                                          px: 0.5,
+                                          minWidth: 0,
+                                          "&:hover": { color: "#2563eb" },
+                                        }}
+                                      >
+                                        ↩ Try again
+                                      </Button>
                                     )}
                                   </Box>
                                 </TableCell>
                               </TableRow>
-                              {showingConfirmationForUser && (
-                                <TableRow sx={rowHighlightSx ?? { background: "inherit" }}>
-                                  <TableCell colSpan={3} sx={{ py: 0.75, px: 1.5, borderBottom: savedPass ? "none" : undefined }}>
-                                    <Box
-                                      sx={{
-                                        display: "flex",
-                                        flexDirection: "column",
-                                        gap: 0.75,
-                                        borderLeft: "2px solid #fbbf24",
-                                        pl: 1.25,
-                                      }}
-                                    >
-                                      <Typography sx={{ fontSize: "0.72rem", color: "#92400e", ...mono }}>
-                                        If you continue, all existing access for this user will be deleted and a 1 hour temorary access pass will be created.
+                            )}
+                            {savedPass && (
+                              <TableRow sx={rowHighlightSx ?? { background: "inherit" }}>
+                                <TableCell colSpan={3} sx={{ py: 0.5, px: 1.5 }}>
+                                  <CopyRow label="New Temporary Access Pass:" value={savedPass} masked />
+                                </TableCell>
+                              </TableRow>
+                            )}
+                            {savedPass && (
+                              <TableRow sx={rowHighlightSx ?? { background: "inherit" }}>
+                                <TableCell colSpan={3} sx={{ py: 0.75, px: 1.5 }}>
+                                  <Box sx={{ display: "flex", flexDirection: "column", gap: 0.7, borderLeft: "2px solid #bfdbfe", pl: 1.25 }}>
+                                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
+                                      <input
+                                        type="checkbox"
+                                        data-id="chkDeliveryConfirm"
+                                        data-upn={user.userPrincipalName}
+                                        checked={isDeliveryConfirmed}
+                                        onChange={(e) => {
+                                          const checked = e.target.checked;
+                                          setDeliveryConfirmedByUserId((prev) => ({ ...prev, [user.id]: checked }));
+                                          logEvent("chkDeliveryConfirmClicked", {
+                                            targetUpn: user.userPrincipalName,
+                                            checked,
+                                          });
+                                          if (!checked) {
+                                            setCompletedByUserId((prev) => ({ ...prev, [user.id]: false }));
+                                          }
+                                        }}
+                                        style={{ margin: 0, width: 14, height: 14 }}
+                                      />
+                                      <Typography sx={{ fontSize: "0.7rem", color: "#1e3a8a", ...mono }}>
+                                        Confirm that the person has successfully logged in and created their long term access pass on{" "}
+                                        <a href="https://mysignins.microsoft.com/" target="_blank" rel="noopener noreferrer">
+                                          https://mysignins.microsoft.com/
+                                        </a>
                                       </Typography>
-                                      <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
-                                        <input
-                                          type="checkbox"
-                                          checked={photoIdConfirmed}
-                                          onChange={(e) => {
-                                            const checked = e.target.checked;
-                                            setPhotoIdConfirmed(checked);
-                                            logEvent("accessPassPhotoIdCheckboxToggled", {
-                                              targetUserId: user.id,
-                                              checked,
-                                            });
+                                    </Box>
+                                    <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
+                                      {isCompletedUser ? (
+                                        <Typography
+                                          sx={{
+                                            ...mono,
+                                            fontSize: "0.72rem",
+                                            color: "#1d4ed8",
+                                            fontWeight: 600,
+                                            px: 1.2,
+                                            py: 0.35,
                                           }}
-                                          style={{ margin: 0, width: 14, height: 14 }}
-                                        />
-                                        <Typography sx={{ fontSize: "0.7rem", color: "#92400e", ...mono }}>
-                                          Confirm that you have viewed the photo ID and confirm it to be the person selected
+                                        >
+                                          Completed
                                         </Typography>
-                                      </Box>
-                                      <Box sx={{ display: "flex", justifyContent: "flex-end", pt: 0.35 }}>
+                                      ) : (
                                         <Button
                                           size="small"
+                                          data-id="btnMarkComplete"
+                                          data-upn={user.userPrincipalName}
                                           variant="contained"
                                           onClick={() => {
-                                            if (confirmationUserId !== user.id) {
-                                              setConfirmationUserId(user.id);
-                                              setPhotoIdConfirmed(false);
-                                              return;
-                                            }
-                                            if (!photoIdConfirmed) return;
-                                            void handleCreateForUser(user.id);
+                                            if (!isDeliveryConfirmed) return;
+                                            logEvent("btnMarkCompleteClicked", {
+                                              targetUserId: user.id,
+                                              deliveryConfirmed: isDeliveryConfirmed,
+                                            });
+                                            setCompletedByUserId((prev) => ({ ...prev, [user.id]: true }));
                                           }}
-                                          disabled={disabled || running || !photoIdConfirmed}
+                                          disabled={!isDeliveryConfirmed}
                                           sx={{
                                             textTransform: "none",
                                             ...mono,
                                             fontSize: "0.72rem",
                                             py: 0.35,
                                             px: 1.2,
-                                            background: isCurrentResult ? "#16a34a" : "#2563eb",
-                                            "&:hover": { background: isCurrentResult ? "#15803d" : "#1d4ed8" },
+                                            background: "#2563eb",
+                                            "&:hover": { background: "#1d4ed8" },
                                             "&.Mui-disabled": { background: "#e2e8f0", color: "#94a3b8" },
                                           }}
                                         >
-                                          {isCreatingThisUser ? "Creating..." : savedPass ? "Create Again" : "Create Access Pass"}
-                                        </Button>
-                                      </Box>
-                                    </Box>
-                                  </TableCell>
-                                </TableRow>
-                              )}
-                              {showingInlineStepsForUser && (
-                                <TableRow sx={rowHighlightSx ?? { background: "inherit" }}>
-                                  <TableCell colSpan={3} sx={{ py: 0.75, px: 1.5, borderBottom: savedPass ? "none" : undefined }}>
-                                    <Box sx={{ display: "flex", flexDirection: "column", gap: 0.25, borderLeft: "2px solid #e2e8f0", pl: 1.25 }}>
-                                      {hydratedSelectedUserSteps.map((s) => (
-                                        <StepRow key={`${user.id}-${s.id}`} step={s} />
-                                      ))}
-                                      {running && <Typography sx={{ fontSize: "0.68rem", color: "#94a3b8", ...mono, mt: 0.25 }}>Running...</Typography>}
-                                      {shouldShowTryAgain && (
-                                        <Button
-                                          size="small"
-                                          onClick={reset}
-                                          sx={{
-                                            alignSelf: "flex-start",
-                                            mt: 0.25,
-                                            textTransform: "none",
-                                            ...mono,
-                                            fontSize: "0.72rem",
-                                            color: "#64748b",
-                                            px: 0.5,
-                                            minWidth: 0,
-                                            "&:hover": { color: "#2563eb" },
-                                          }}
-                                        >
-                                          ↩ Try again
+                                          Mark Complete
                                         </Button>
                                       )}
                                     </Box>
-                                  </TableCell>
-                                </TableRow>
-                              )}
-                              {savedPass && (
-                                <TableRow sx={rowHighlightSx ?? { background: "inherit" }}>
-                                  <TableCell colSpan={3} sx={{ py: 0.5, px: 1.5 }}>
-                                    <CopyRow label="New Temporary Access Pass:" value={savedPass} masked />
-                                  </TableCell>
-                                </TableRow>
-                              )}
-                              {savedPass && (
-                                <TableRow sx={rowHighlightSx ?? { background: "inherit" }}>
-                                  <TableCell colSpan={3} sx={{ py: 0.75, px: 1.5 }}>
-                                    <Box sx={{ display: "flex", flexDirection: "column", gap: 0.7, borderLeft: "2px solid #bfdbfe", pl: 1.25 }}>
-                                      <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
-                                        <input
-                                          type="checkbox"
-                                          data-id="chkDeliveryConfirm"
-                                          data-upn={user.userPrincipalName}
-                                          checked={isDeliveryConfirmed}
-                                          onChange={(e) => {
-                                            const checked = e.target.checked;
-                                            setDeliveryConfirmedByUserId((prev) => ({ ...prev, [user.id]: checked }));
-                                            logEvent("chkDeliveryConfirmClicked", {
-                                              targetUpn: user.userPrincipalName,
-                                              checked,
-                                            });
-                                            if (!checked) {
-                                              setCompletedByUserId((prev) => ({ ...prev, [user.id]: false }));
-                                            }
-                                          }}
-                                          style={{ margin: 0, width: 14, height: 14 }}
-                                        />
-                                        <Typography sx={{ fontSize: "0.7rem", color: "#1e3a8a", ...mono }}>
-                                          Confirm that the person has successfully logged in and created their long term access pass on <a href="https://mysignins.microsoft.com/" target="_blank" rel="noopener noreferrer">https://mysignins.microsoft.com/</a>
-                                        </Typography>
-                                      </Box>
-                                      <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
-                                        {isCompletedUser ? (
-                                          <Typography
-                                            sx={{
-                                              ...mono,
-                                              fontSize: "0.72rem",
-                                              color: "#1d4ed8",
-                                              fontWeight: 600,
-                                              px: 1.2,
-                                              py: 0.35,
-                                            }}
-                                          >
-                                            Completed
-                                          </Typography>
-                                        ) : (
-                                          <Button
-                                            size="small"
-                                            data-id="btnMarkComplete"
-                                            data-upn={user.userPrincipalName}
-                                            variant="contained"
-                                            onClick={() => {
-                                              if (!isDeliveryConfirmed) return;
-                                              logEvent("btnMarkCompleteClicked", {
-                                                targetUserId: user.id,
-                                                deliveryConfirmed: isDeliveryConfirmed,
-                                              });
-                                              setCompletedByUserId((prev) => ({ ...prev, [user.id]: true }));
-                                            }}
-                                            disabled={!isDeliveryConfirmed}
-                                            sx={{
-                                              textTransform: "none",
-                                              ...mono,
-                                              fontSize: "0.72rem",
-                                              py: 0.35,
-                                              px: 1.2,
-                                              background: "#2563eb",
-                                              "&:hover": { background: "#1d4ed8" },
-                                              "&.Mui-disabled": { background: "#e2e8f0", color: "#94a3b8" },
-                                            }}
-                                          >
-                                            Mark Complete
-                                          </Button>
-                                        )}
-                                      </Box>
-                                    </Box>
-                                  </TableCell>
-                                </TableRow>
-                              )}
-                            </Fragment>
-                          );
-                        })}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
-                )}
+                                  </Box>
+                                </TableCell>
+                              </TableRow>
+                            )}
+                          </Fragment>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              )}
 
-                {!managerUsersLoading && managerUsers.length > PAGE_SIZE && (
-                  <Box sx={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, flexWrap: "wrap" }}>
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, flexWrap: "wrap" }}>
+              {!managerUsersLoading && managerUsers.length > PAGE_SIZE && (
+                <Box sx={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, flexWrap: "wrap" }}>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, flexWrap: "wrap" }}>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                      sx={{ textTransform: "none", ...mono, minWidth: 0, px: 1 }}
+                    >
+                      Prev
+                    </Button>
+                    {visiblePages.map((page) => (
                       <Button
+                        key={page}
                         size="small"
-                        variant="outlined"
-                        onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                        disabled={currentPage === 1}
-                        sx={{ textTransform: "none", ...mono, minWidth: 0, px: 1 }}
+                        variant={page === currentPage ? "contained" : "outlined"}
+                        onClick={() => setCurrentPage(page)}
+                        sx={{ textTransform: "none", ...mono, minWidth: 32, px: 0.75 }}
                       >
-                        Prev
+                        {page}
                       </Button>
-                      {visiblePages.map((page) => (
-                        <Button
-                          key={page}
-                          size="small"
-                          variant={page === currentPage ? "contained" : "outlined"}
-                          onClick={() => setCurrentPage(page)}
-                          sx={{ textTransform: "none", ...mono, minWidth: 32, px: 0.75 }}
-                        >
-                          {page}
-                        </Button>
-                      ))}
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                        disabled={currentPage === totalPages}
-                        sx={{ textTransform: "none", ...mono, minWidth: 0, px: 1 }}
-                      >
-                        Next
-                      </Button>
-                    </Box>
-
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
-                      <Typography sx={{ fontSize: "0.7rem", color: "#475569", ...mono }}>
-                        Page {currentPage} of {totalPages}
-                      </Typography>
-                      <TextField
-                        size="small"
-                        value={pageInput}
-                        onChange={(e) => setPageInput(e.target.value.replace(/[^0-9]/g, ""))}
-                        onKeyDown={(e) => e.key === "Enter" && goToPage()}
-                        placeholder="Page"
-                        inputProps={{ style: { fontFamily: "'IBM Plex Mono', monospace", fontSize: "0.75rem", width: 48 } }}
-                      />
-                      <Button size="small" variant="outlined" onClick={goToPage} sx={{ textTransform: "none", ...mono }}>
-                        Go
-                      </Button>
-                    </Box>
+                    ))}
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                      disabled={currentPage === totalPages}
+                      sx={{ textTransform: "none", ...mono, minWidth: 0, px: 1 }}
+                    >
+                      Next
+                    </Button>
                   </Box>
-                )}
 
-                {!managerUsersLoading && managerUsers.length === 0 && !managerUsersError && (
-                  <Typography sx={{ fontSize: "0.72rem", color: "#475569", ...mono }}>
-                    No users found that are managed by your signed-in account.
-                  </Typography>
-                )}
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
+                    <Typography sx={{ fontSize: "0.7rem", color: "#475569", ...mono }}>
+                      Page {currentPage} of {totalPages}
+                    </Typography>
+                    <TextField
+                      size="small"
+                      value={pageInput}
+                      onChange={(e) => setPageInput(e.target.value.replace(/[^0-9]/g, ""))}
+                      onKeyDown={(e) => e.key === "Enter" && goToPage()}
+                      placeholder="Page"
+                      inputProps={{ style: { fontFamily: "'IBM Plex Mono', monospace", fontSize: "0.75rem", width: 48 } }}
+                    />
+                    <Button size="small" variant="outlined" onClick={goToPage} sx={{ textTransform: "none", ...mono }}>
+                      Go
+                    </Button>
+                  </Box>
+                </Box>
+              )}
 
-                {managerUsersError && (
-                  <Typography sx={{ fontSize: "0.72rem", color: "#ef4444", ...mono }}>{managerUsersError}</Typography>
-                )}
+              {!managerUsersLoading && managerUsers.length === 0 && !managerUsersError && (
+                <Typography sx={{ fontSize: "0.72rem", color: "#475569", ...mono }}>No users found that are managed by your signed-in account.</Typography>
+              )}
 
-              </Box>
+              {managerUsersError && <Typography sx={{ fontSize: "0.72rem", color: "#ef4444", ...mono }}>{managerUsersError}</Typography>}
+            </Box>
           </Box>
 
           {subsError && <Typography sx={{ fontSize: "0.72rem", color: "#ef4444", ...mono }}>{subsError}</Typography>}
