@@ -1,0 +1,78 @@
+name: Plan c01subscription
+
+on:
+  workflow_dispatch:
+    inputs:
+      github_env_name:
+        description: "GitHub Environment name"
+        required: false
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  BRANCH: ${{ github.ref_name }}
+  ENV_ARTIFACT: new-env
+  ENV_PATH: corpSetup/corp.env
+  STATUS_FILE: status.json
+  PLAN_FILE: tfplan
+  JSON_PLAN_FILE: plan.json
+  TERRAFORM_VERSION: 1.6.6
+  CHANGESET_PATH: corpSetup/deploymentChangeset.json
+
+jobs:
+  plan:
+    environment: ${{ inputs.github_env_name }}
+    runs-on: ubuntu-latest
+    outputs:
+      azure_signed_in: ${{ steps.plan_stage.outputs.azure_signed_in }}
+      aws_signed_in: ${{ steps.plan_stage.outputs.aws_signed_in }}
+    steps:
+      - uses: actions/checkout@v5
+      - id: plan_stage
+        uses: ./.github/actions/plan-stage
+        with:
+          stage: c01
+          dir: c01subscription
+          vars_json: ${{ toJSON(vars) }}
+          env_artifact_name: ${{ env.ENV_ARTIFACT }}
+          env_path: ${{ env.ENV_PATH }}
+          stage_status_file: ${{ env.STATUS_FILE }}
+          plan_file: ${{ env.PLAN_FILE }}
+          json_plan_file: ${{ env.JSON_PLAN_FILE }}
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          azure_client_id: ${{ vars.AZURE_PLAN_CLIENT_ID }}
+          azure_tenant_id: ${{ vars.AZURE_TENANT_ID }}
+          azure_subscription_id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          aws_role_arn: ${{ vars.AWS_ROLE_ARN }}
+
+  commit:
+    concurrency:
+      group: changeset-${{ github.ref }}
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      actions: read
+    environment: ${{ inputs.github_env_name }}
+    needs: plan
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/commit-plan-status
+        with:
+          stage: c01
+          dir: c01subscription
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          branch: ${{ env.BRANCH }}
+          env_artifact_name: ${{ env.ENV_ARTIFACT }}
+          env_path: ${{ env.ENV_PATH }}
+          stage_status_file: ${{ env.STATUS_FILE }}
+          changeset_path: ${{ env.CHANGESET_PATH }}
+          corp_name: ${{ vars.NAME }}
+          dns: ${{ vars.DNS }}
+          azure_signed_in: ${{ needs.plan.outputs.azure_signed_in || 'false' }}
+          aws_signed_in: ${{ needs.plan.outputs.aws_signed_in || 'false' }}

@@ -1,0 +1,118 @@
+name: Plan and publish
+description: Run one stage's Terraform plan and publish its status, log, and plan artifacts
+
+# Replaces update-stage-status on the per-stage path. That action still serves the old
+# planChanges.yml, and its five artifact steps are pinned to node20 actions.
+#
+# Two things it deliberately does not carry over:
+#   - the needs_azure/azure_ok gating, now dead: a failed login stops the job before this runs
+#   - the -tfplan and -dist artifacts, which nothing downloads (-tfplan is already inside -pkg,
+#     and the -dist upload had been commented out)
+#
+# Filenames come from the caller so the commit job reads back exactly what this wrote.
+inputs:
+  stage:
+    description: "Stage code"
+    required: true
+  dir:
+    description: "Stage directory under corpSetup"
+    required: true
+  stage_status_file:
+    description: "Status filename to write inside the stage directory"
+    required: true
+  plan_file:
+    description: "Binary plan Terraform writes — the deploy path applies this same name"
+    required: true
+  json_plan_file:
+    description: "Readable plan the card fetches"
+    required: true
+
+runs:
+  using: composite
+  steps:
+    # Best-effort: a failed plan is the outcome to report, not a reason to skip reporting it.
+    # tee keeps the output in the Actions log as well as in the artifact the card reads, and
+    # pipefail is set explicitly so tee's success cannot mask a failed plan.
+    - name: Plan the stage
+      id: plan
+      continue-on-error: true
+      shell: bash
+      working-directory: corpSetup
+      run: |
+        set -o pipefail
+        node initCorpEnvDeploy.js --stage=${{ inputs.stage }} --planOnly 2>&1 | tee /tmp/plan_output.txt
+
+    - name: Convert the plan to JSON
+      if: steps.plan.outcome == 'success'
+      shell: bash
+      working-directory: corpSetup/${{ inputs.dir }}
+      env:
+        PLAN_FILE: ${{ inputs.plan_file }}
+        JSON_PLAN_FILE: ${{ inputs.json_plan_file }}
+      run: |
+        if [ -f "$PLAN_FILE" ]; then
+          terraform show -json "$PLAN_FILE" > "$JSON_PLAN_FILE"
+        fi
+
+    # Built with jq rather than a heredoc so it matches, field for field, the entry
+    # commit-plan-status synthesises when this artifact never arrives.
+    - name: Write status
+      if: always()
+      shell: bash
+      working-directory: corpSetup/${{ inputs.dir }}
+      env:
+        DIR: ${{ inputs.dir }}
+        STAGE: ${{ inputs.stage }}
+        STATUS_FILE: ${{ inputs.stage_status_file }}
+        JSON_PLAN_FILE: ${{ inputs.json_plan_file }}
+        OUTCOME: ${{ steps.plan.outcome }}
+      run: |
+        STATUS="failed"
+        PLAN_PATH=""
+        if [ "$OUTCOME" = "success" ]; then
+          STATUS="success"
+          PLAN_PATH="corpSetup/${DIR}/${JSON_PLAN_FILE}"
+        fi
+
+        jq -n --arg runId "${{ github.run_id }}" --arg stage "$STAGE" --arg name "$DIR" \
+          --arg planPath "$PLAN_PATH" --arg status "$STATUS" \
+          '{ runId: $runId, stage: $stage, name: $name, planPath: $planPath,
+             status: $status, timestamp: (now | floor) }' > "$STATUS_FILE"
+        cat "$STATUS_FILE"
+
+    # "failed" on its own tells the card nothing. This is the only record of why, so it goes up
+    # whatever happened — the same arrangement the deploy path already has.
+    - name: Upload the plan log
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        if-no-files-found: ignore
+        name: ${{ inputs.dir }}-plan-log
+        path: /tmp/plan_output.txt
+
+    - name: Upload status
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        if-no-files-found: ignore
+        name: ${{ inputs.dir }}-status
+        path: corpSetup/${{ inputs.dir }}/${{ inputs.stage_status_file }}
+
+    - name: Upload the readable plan
+      if: steps.plan.outcome == 'success'
+      uses: actions/upload-artifact@v7
+      with:
+        if-no-files-found: ignore
+        name: ${{ inputs.dir }}-planJson
+        path: corpSetup/${{ inputs.dir }}/${{ inputs.json_plan_file }}
+
+    # The whole stage directory, including .terraform and the binary plan — this is what the
+    # deploy path downloads and applies.
+    - name: Upload the planned stage
+      if: steps.plan.outcome == 'success'
+      uses: actions/upload-artifact@v7
+      with:
+        if-no-files-found: ignore
+        include-hidden-files: true
+        name: ${{ inputs.dir }}-pkg
+        path: corpSetup/${{ inputs.dir }}/

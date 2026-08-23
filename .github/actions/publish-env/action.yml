@@ -1,0 +1,53 @@
+name: Publish env
+description: Merge the repo's GitHub variables into corp.env and publish it as an artifact for the commit job
+
+# vars and secrets are not readable inside a composite action, so the caller passes what it needs.
+# Paths and artifact names carry no defaults on purpose: the plan job writes them and the
+# commit job reads them, so a per-action default is exactly how the two sides drift apart.
+# The workflow declares each one once and passes it to both.
+inputs:
+  vars_json:
+    description: "toJSON(vars) from the calling workflow"
+    required: true
+  subscription_id:
+    description: "AZURE_SUBSCRIPTION_ID, written as SUBSCRIPTION_ID"
+    required: false
+    default: ""
+  env_path:
+    description: "Path to corp.env in the repo"
+    required: true
+  env_artifact_name:
+    description: "Artifact name to upload the merged env under"
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Merge GitHub variables into corp.env
+      shell: bash
+      env:
+        VARS_JSON: ${{ inputs.vars_json }}
+        SUBSCRIPTION_ID: ${{ inputs.subscription_id }}
+        ENV_PATH: ${{ inputs.env_path }}
+      run: |
+        mkdir -p $(dirname "$ENV_PATH")
+
+        # Write GitHub vars to temp file (these are authoritative)
+        echo "$VARS_JSON" | jq -r 'to_entries[] | "\(.key)=\(.value)"' > /tmp/gh_vars.env
+        # key renames: GitHub var name differs from corp.env key name
+        [ -n "$SUBSCRIPTION_ID" ] && echo "SUBSCRIPTION_ID=$SUBSCRIPTION_ID" >> /tmp/gh_vars.env || true
+
+        # Merge: GitHub vars take precedence, preserve keys from existing corp.env that GitHub doesn't set
+        if [ -f "$ENV_PATH" ]; then
+          awk -F= 'FNR==NR{seen[$1]=1; print; next} !seen[$1] && !/^#/ && !/^$/' \
+            /tmp/gh_vars.env "$ENV_PATH" > /tmp/merged.env
+          mv /tmp/merged.env "$ENV_PATH"
+        else
+          mv /tmp/gh_vars.env "$ENV_PATH"
+        fi
+
+    - name: Publish corp.env as an artifact
+      uses: actions/upload-artifact@v7
+      with:
+        name: ${{ inputs.env_artifact_name }}
+        path: ${{ inputs.env_path }}

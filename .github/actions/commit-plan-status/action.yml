@@ -1,0 +1,194 @@
+name: Commit plan status
+description: Record one stage's plan result in deploymentChangeset.json and push it
+
+# The mirror of commit-deploy-status: that one owns the deploy fields and carries the plan fields
+# forward, this one owns the plan fields and leaves the deploy fields alone.
+
+inputs:
+  stage:
+    description: "Stage code — the key the card matches on"
+    required: true
+  dir:
+    description: "Stage directory — also the stage's name in the changeset"
+    required: true
+  github_token:
+    description: "Token for reading this run's artifact list"
+    required: true
+  branch:
+    description: "Branch to rebase onto and push"
+    required: true
+  corp_name:
+    description: "vars.NAME, used in the commit author"
+    required: false
+    default: ""
+  dns:
+    description: "vars.DNS, used in the commit author"
+    required: false
+    default: ""
+  azure_signed_in:
+    required: false
+    default: "false"
+    description: "Whether the Azure login succeeded"
+  aws_signed_in:
+    required: false
+    default: "false"
+    description: "Whether the AWS login succeeded"
+  changeset_path:
+    required: true
+    description: "Path to deploymentChangeset.json"
+  env_artifact_name:
+    required: true
+    description: "Artifact holding the merged corp.env"
+  env_path:
+    required: true
+    description: "Where to restore corp.env — its basename is also the filename inside the artifact"
+  stage_status_file:
+    required: true
+    description: "Status filename the stage wrote inside its artifact"
+
+runs:
+  using: composite
+  steps:
+    - name: Download all artifacts
+      uses: actions/download-artifact@v7
+      with:
+        path: artifacts
+
+    - name: Fetch this run's artifact list
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github_token }}
+      run: |
+        set +e
+        RESPONSE=$(curl -s -w "\n%{http_code}" \
+          -H "Authorization: Bearer $GH_TOKEN" \
+          -H "Accept: application/vnd.github+json" \
+          https://api.github.com/repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts)
+
+        echo "$RESPONSE" | sed '$d' > /tmp/artifactList.json
+        echo "HTTP status: $(echo "$RESPONSE" | tail -n1)"
+
+        # Any bad response degrades to "no artifacts" rather than failing the run: the stage's own
+        # status still gets recorded, just without the plan and log links.
+        if ! jq empty /tmp/artifactList.json 2>/dev/null || jq -e 'has("message")' /tmp/artifactList.json > /dev/null; then
+          echo "Unusable artifact list:"
+          cat /tmp/artifactList.json
+          echo '{"artifacts":[]}' > /tmp/artifactList.json
+        fi
+
+    - name: Merge this stage's plan result into the changeset
+      shell: bash
+      env:
+        DIR: ${{ inputs.dir }}
+        STAGE: ${{ inputs.stage }}
+        CHANGESET: ${{ inputs.changeset_path }}
+        AZURE_SIGNED_IN: ${{ inputs.azure_signed_in }}
+        AWS_SIGNED_IN: ${{ inputs.aws_signed_in }}
+        ENV_ARTIFACT_NAME: ${{ inputs.env_artifact_name }}
+        ENV_PATH: ${{ inputs.env_path }}
+        STAGE_STATUS_FILE: ${{ inputs.stage_status_file }}
+      run: |
+        mkdir -p corpSetup
+        ARTIFACTS=$(cat /tmp/artifactList.json)
+
+        # This run planned exactly one stage, so read that one status file directly instead of
+        # scanning for whatever happens to be lying around.
+        STATUS_FILE="artifacts/${DIR}-status/${STAGE_STATUS_FILE}"
+
+        # The plan job can die before it writes one — a failed login, for instance. Record the
+        # failure ourselves: the card polls this file and would otherwise just time out.
+        if [ ! -f "$STATUS_FILE" ]; then
+          echo "::warning::$STATUS_FILE is missing — recording the stage as failed"
+          mkdir -p "$(dirname "$STATUS_FILE")"
+          jq -n --arg runId "${{ github.run_id }}" --arg stage "$STAGE" --arg name "$DIR" \
+            '{ runId: $runId, stage: $stage, name: $name, planPath: "",
+               status: "failed", timestamp: (now | floor) }' > "$STATUS_FILE"
+        fi
+
+        artifact_field() {
+          echo "$ARTIFACTS" | jq -r --arg name "$1" --arg field "$2" \
+            '.artifacts[]? | select(.name==$name) | .[$field] // empty'
+        }
+        PLAN_ID=$(artifact_field "${DIR}-planJson" id); [ -z "$PLAN_ID" ] && PLAN_ID=null
+        PLAN_URL=$(artifact_field "${DIR}-planJson" archive_download_url)
+
+        # Present whether the plan passed or failed; on failure it is the only explanation the card has.
+        LOG_ID=$(artifact_field "${DIR}-plan-log" id); [ -z "$LOG_ID" ] && LOG_ID=null
+        LOG_URL=$(artifact_field "${DIR}-plan-log" archive_download_url)
+
+        EXISTING_STAGES="[]"
+        [ -f "$CHANGESET" ] && EXISTING_STAGES=$(jq '.stages // []' "$CHANGESET")
+
+        # Deploy fields belong to the deploy workflow; carry this stage's forward untouched.
+        EXISTING_DEPLOY=$(echo "$EXISTING_STAGES" | jq --arg name "$DIR" \
+          'map(select(.name==$name)) | first // {} |
+           { deployStatus: (.deployStatus // null), deployRunId: (.deployRunId // null),
+             deployPlanRunId: (.deployPlanRunId // null), deployedAt: (.deployedAt // null),
+             deployLogId: (.deployLogId // null), deployLogUrl: (.deployLogUrl // null) }')
+
+        UPDATED=$(jq --argjson plan "$PLAN_ID" --arg planUrl "$PLAN_URL" \
+          --argjson planLog "$LOG_ID" --arg planLogUrl "$LOG_URL" \
+          --argjson deploy "$EXISTING_DEPLOY" \
+          '. + { planJsonId: $plan, planJsonUrl: $planUrl,
+                 planLogId: $planLog,
+                 planLogUrl: (if $planLogUrl == "" then null else $planLogUrl end) } + $deploy' \
+          "$STATUS_FILE")
+
+        # Upsert, never rebuild: the other stages' entries must survive a single-stage run.
+        STAGES=$(echo "$EXISTING_STAGES" | jq --argjson u "$UPDATED" \
+          'if any(.[]; .name == $u.name) then map(if .name == $u.name then $u else . end) else . + [$u] end')
+
+        ENV_ID=$(artifact_field "$ENV_ARTIFACT_NAME" id)
+        ENV_URL=$(artifact_field "$ENV_ARTIFACT_NAME" archive_download_url)
+
+        # A run that stopped at the login publishes no env. Keep pointing at the last good one
+        # rather than blanking the link the card reads.
+        if [ -z "$ENV_ID" ] && [ -f "$CHANGESET" ]; then
+          ENV_ID=$(jq -r '.envId // empty' "$CHANGESET")
+          ENV_URL=$(jq -r '.envUrl // empty' "$CHANGESET")
+        fi
+        [ -z "$ENV_ID" ] && ENV_ID=null
+
+        jq -n --argjson stages "$STAGES" \
+          --arg updatedAt "$(date +%s)" \
+          --arg runId "${{ github.run_id }}" \
+          --argjson envId "$ENV_ID" --arg envUrl "$ENV_URL" \
+          --argjson azureOk "$AZURE_SIGNED_IN" --argjson awsOk "$AWS_SIGNED_IN" \
+          '{
+            runId: $runId,
+            updatedAt: ($updatedAt | tonumber),
+            envId: $envId,
+            envUrl: (if $envUrl == "" then null else $envUrl end),
+            azure: { configured: true, valid: $azureOk },
+            aws: { configured: true, valid: $awsOk },
+            stages: $stages
+          }' > "$CHANGESET"
+
+        # write-env uploaded the file at ENV_PATH, so inside the artifact it keeps that basename.
+        ENV_FILE="artifacts/${ENV_ARTIFACT_NAME}/$(basename "$ENV_PATH")"
+        if [ -f "$ENV_FILE" ]; then
+          cp "$ENV_FILE" "$ENV_PATH"
+        fi
+
+    - name: Commit and push the changeset
+      shell: bash
+      env:
+        DIR: ${{ inputs.dir }}
+        CORP_NAME: ${{ inputs.corp_name }}
+        DNS: ${{ inputs.dns }}
+        BRANCH: ${{ inputs.branch }}
+      run: |
+        GIT_NAME="${CORP_NAME:+$CORP_NAME }github actions"
+        git config user.name "$GIT_NAME"
+        git config user.email "${GIT_NAME// /_}@${DNS}"
+
+        git add corpSetup
+        git diff --cached --quiet || git commit -m "Update status: $DIR"
+
+        # Another stage may have pushed while this one planned, so rebase before pushing.
+        git fetch origin
+        git rebase "origin/$BRANCH" || {
+          echo "::error::Rebase onto origin/$BRANCH failed"
+          exit 1
+        }
+        git push origin "$BRANCH"

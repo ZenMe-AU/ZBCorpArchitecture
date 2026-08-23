@@ -1,0 +1,109 @@
+name: Plan stage
+description: Sign in, publish the merged env, install the toolchain, and run one stage's Terraform plan
+
+# vars and secrets are not readable inside a composite action, so the caller passes what it needs.
+# Paths and artifact names carry no defaults on purpose: the plan job writes them and the
+# commit job reads them, so a per-action default is exactly how the two sides drift apart.
+# The workflow declares each one once and passes it to both.
+inputs:
+  stage:
+    description: "Stage code"
+    required: true
+  dir:
+    description: "Stage directory under corpSetup"
+    required: true
+  azure_client_id:
+    required: false
+    default: ""
+    description: "AZURE_PLAN_CLIENT_ID — the plan path signs in with the lower-privilege identity"
+  azure_tenant_id:
+    required: false
+    default: ""
+    description: "AZURE_TENANT_ID"
+  azure_subscription_id:
+    required: false
+    default: ""
+    description: "AZURE_SUBSCRIPTION_ID"
+  aws_role_arn:
+    required: false
+    default: ""
+    description: "AWS_ROLE_ARN"
+  vars_json:
+    description: "toJSON(vars) from the calling workflow — composite actions cannot read vars"
+    required: true
+  env_artifact_name:
+    required: true
+    description: "Artifact name to publish the merged corp.env under"
+  env_path:
+    required: true
+    description: "Where corp.env lives in the checkout"
+  stage_status_file:
+    required: true
+    description: "Status filename the commit job will look for inside the stage's artifact"
+  plan_file:
+    required: true
+    description: "Binary plan filename — the deploy path applies this same name"
+  json_plan_file:
+    required: true
+    description: "Readable plan filename the card fetches"
+  terraform_version:
+    required: true
+    description: "Terraform version — the deploy path must install a compatible one"
+
+outputs:
+  azure_signed_in:
+    description: "Whether the Azure login succeeded"
+    value: ${{ steps.cloud.outputs.azure_signed_in }}
+  aws_signed_in:
+    description: "Whether the AWS login succeeded"
+    value: ${{ steps.cloud.outputs.aws_signed_in }}
+
+runs:
+  using: composite
+  steps:
+    - id: clouds
+      uses: ./.github/actions/read-terraform-providers
+      with:
+        stage_dir: corpSetup/${{ inputs.dir }}
+
+    # Signing in comes first. Everything below costs a runner minute or an artifact, and a stage
+    # that cannot authenticate is going to fail regardless — so spend nothing until it has.
+    - id: cloud
+      uses: ./.github/actions/cloud-login
+      with:
+        needs_azure: ${{ steps.clouds.outputs.needs_azure }}
+        needs_aws: ${{ steps.clouds.outputs.needs_aws }}
+        azure_client_id: ${{ inputs.azure_client_id }}
+        azure_tenant_id: ${{ inputs.azure_tenant_id }}
+        azure_subscription_id: ${{ inputs.azure_subscription_id }}
+        aws_role_arn: ${{ inputs.aws_role_arn }}
+
+    # Between the login and the work: a stage that could not sign in never gets this far.
+    - name: Install Terraform
+      uses: hashicorp/setup-terraform@v4
+      with:
+        terraform_version: ${{ inputs.terraform_version }}
+        terraform_wrapper: false
+
+    - uses: ./.github/actions/publish-env
+      with:
+        vars_json: ${{ inputs.vars_json }}
+        subscription_id: ${{ inputs.azure_subscription_id }}
+        env_path: ${{ inputs.env_path }}
+        env_artifact_name: ${{ inputs.env_artifact_name }}
+
+    - uses: pnpm/setup@v2
+      with:
+        runtime: node@22
+        cache: true
+
+    # Not best-effort: run-stage reports a failed plan itself, so anything that gets past its own
+    # handling is infrastructure breaking, and a green job with no status would just confuse the card.
+    - name: Plan and publish
+      uses: ./.github/actions/plan-and-publish
+      with:
+        stage: ${{ inputs.stage }}
+        dir: ${{ inputs.dir }}
+        stage_status_file: ${{ inputs.stage_status_file }}
+        plan_file: ${{ inputs.plan_file }}
+        json_plan_file: ${{ inputs.json_plan_file }}
