@@ -36,3 +36,6 @@ terraform.tfstate.backup
 .terraform/
 .env
 planfile
+selfService/backend/local.settings.json
+corpSetup/corp.env
+corpSetup/c25cloudfront/source/loginApp/config.js

@@ -12,9 +12,7 @@
     "docs:build": "vitepress build docs",
     "docs:preview": "vitepress preview docs",
     "test": "vitest run",
-    "test:watch": "vitest",
-    "backend:dev": "pnpm --filter backend start",
-    "backend:deploy": "pnpm --filter backend run deploy"
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@azure/msal-browser": "^5.19.0",
