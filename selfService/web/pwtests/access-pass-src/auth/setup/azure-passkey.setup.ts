@@ -1,27 +1,27 @@
 // run this from workspace root
 // pnpm exec playwright test azure-passkey.setup.ts --project=chromium --headed --workers=1
 
-  /*
-      Complete Microsoft login manually.
+/*
+    Complete Microsoft login manually.
 
-      Important:
-      - Use passkey.
-      - Click "Yes" on Stay signed in.
-      - Wait until you return to Access Pass.
-      - Confirm "Signed in as <UPN>" is visible.
-      - Then click Resume in Playwright Inspector.
-    */
+    Important:
+    - Use passkey.
+    - Click "Yes" on Stay signed in.
+    - Wait until you return to Access Pass.
+    - Confirm "Signed in as <UPN>" is visible.
+    - Then click Resume in Playwright Inspector.
+  */
 
 import { expect, test as setup } from "@playwright/test";
 import fs from "fs";
-import { authDir, saveSessionStorage,} from "../../setupHelper";
-import {getAccessPassUserAuth, loadAccessPassUsers,} from "../../testHelper";
+import { authDir, saveSessionStorage, } from "../../setupHelper";
+import { getAccessPassUserAuth, loadAccessPassUsers, } from "../../testHelper";
 
-const ACCESS_PASS_URL = "http://localhost:5173/accessPass.html";
+const ACCESS_PASS_URL = "http://localhost:5173/index.html";
 
 const allUsers = loadAccessPassUsers();
 const requestedUserId = process.env.ACCESS_PASS_AUTH_USER?.trim();
-const users = requestedUserId ? allUsers.filter((user) => user.id === requestedUserId,): allUsers;
+const users = requestedUserId ? allUsers.filter((user) => user.id === requestedUserId,) : allUsers;
 
 if (requestedUserId && users.length === 0) {
   throw new Error(`ACCESS_PASS_AUTH_USER="${requestedUserId}" was not found in access-pass-users.local.json`,);
@@ -67,7 +67,7 @@ for (const user of users) {
     await page.pause();
 
     try {
-      await page.waitForURL(/localhost:5173\/accessPass\.html(?:[/?#].*)?$/i, {timeout: 180_000,});
+    await page.waitForURL(/localhost:5173\/?(?:[/?#].*)?$/i, { timeout: 180_000 });
     } catch {
       console.log("Page did not return to Access Pass yet.");
       console.log(`Current URL: ${page.url()}`);
