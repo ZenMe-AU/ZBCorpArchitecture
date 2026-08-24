@@ -54,6 +54,7 @@ jobs:
     permissions:
       contents: write
       actions: read
+      deployments: write
     environment: ${{ inputs.github_env_name }}
     needs: plan
     if: always()
@@ -62,7 +63,8 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - uses: ./.github/actions/commit-plan-status
+      - id: commit_status
+        uses: ./.github/actions/commit-plan-status
         with:
           stage: c01
           dir: c01subscription
@@ -76,3 +78,14 @@ jobs:
           dns: ${{ vars.DNS }}
           azure_signed_in: ${{ needs.plan.outputs.azure_signed_in || 'false' }}
           aws_signed_in: ${{ needs.plan.outputs.aws_signed_in || 'false' }}
+      - uses: ./.github/actions/report-stage-result
+        if: always()
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          environment: ${{ inputs.github_env_name }}
+          ref: ${{ env.BRANCH }}
+          kind: plan
+          dir: c01subscription
+          state: ${{ fromJSON(steps.commit_status.outputs.stage_result || '{}').status == 'success' && 'success' || 'failure' }}
+          payload: ${{ steps.commit_status.outputs.stage_result }}
+          log_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}

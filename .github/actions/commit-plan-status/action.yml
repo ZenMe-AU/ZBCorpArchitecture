@@ -46,6 +46,11 @@ inputs:
     required: true
     description: "Status filename the stage wrote inside its artifact"
 
+outputs:
+  stage_result:
+    description: "The entry written to the changeset — the same JSON a caller can report elsewhere"
+    value: ${{ steps.merge.outputs.stage_result }}
+
 runs:
   using: composite
   steps:
@@ -77,6 +82,7 @@ runs:
         fi
 
     - name: Merge this stage's plan result into the changeset
+      id: merge
       shell: bash
       env:
         DIR: ${{ inputs.dir }}
@@ -116,28 +122,6 @@ runs:
         LOG_ID=$(artifact_field "${DIR}-plan-log" id); [ -z "$LOG_ID" ] && LOG_ID=null
         LOG_URL=$(artifact_field "${DIR}-plan-log" archive_download_url)
 
-        EXISTING_STAGES="[]"
-        [ -f "$CHANGESET" ] && EXISTING_STAGES=$(jq '.stages // []' "$CHANGESET")
-
-        # Deploy fields belong to the deploy workflow; carry this stage's forward untouched.
-        EXISTING_DEPLOY=$(echo "$EXISTING_STAGES" | jq --arg name "$DIR" \
-          'map(select(.name==$name)) | first // {} |
-           { deployStatus: (.deployStatus // null), deployRunId: (.deployRunId // null),
-             deployPlanRunId: (.deployPlanRunId // null), deployedAt: (.deployedAt // null),
-             deployLogId: (.deployLogId // null), deployLogUrl: (.deployLogUrl // null) }')
-
-        UPDATED=$(jq --argjson plan "$PLAN_ID" --arg planUrl "$PLAN_URL" \
-          --argjson planLog "$LOG_ID" --arg planLogUrl "$LOG_URL" \
-          --argjson deploy "$EXISTING_DEPLOY" \
-          '. + { planJsonId: $plan, planJsonUrl: $planUrl,
-                 planLogId: $planLog,
-                 planLogUrl: (if $planLogUrl == "" then null else $planLogUrl end) } + $deploy' \
-          "$STATUS_FILE")
-
-        # Upsert, never rebuild: the other stages' entries must survive a single-stage run.
-        STAGES=$(echo "$EXISTING_STAGES" | jq --argjson u "$UPDATED" \
-          'if any(.[]; .name == $u.name) then map(if .name == $u.name then $u else . end) else . + [$u] end')
-
         ENV_ID=$(artifact_field "$ENV_ARTIFACT_NAME" id)
         ENV_URL=$(artifact_field "$ENV_ARTIFACT_NAME" archive_download_url)
 
@@ -148,6 +132,38 @@ runs:
           ENV_URL=$(jq -r '.envUrl // empty' "$CHANGESET")
         fi
         [ -z "$ENV_ID" ] && ENV_ID=null
+
+        EXISTING_STAGES="[]"
+        [ -f "$CHANGESET" ] && EXISTING_STAGES=$(jq '.stages // []' "$CHANGESET")
+
+        # Deploy fields belong to the deploy workflow; carry this stage's forward untouched.
+        EXISTING_DEPLOY=$(echo "$EXISTING_STAGES" | jq --arg name "$DIR" \
+          'map(select(.name==$name)) | first // {} |
+           { deployStatus: (.deployStatus // null), deployRunId: (.deployRunId // null),
+             deployPlanRunId: (.deployPlanRunId // null), deployedAt: (.deployedAt // null),
+             deployLogId: (.deployLogId // null), deployLogUrl: (.deployLogUrl // null) }')
+
+        # envId rides along with the stage rather than only at the top of the changeset: the env
+        # artifact belongs to the run that produced this plan, and a reader of one stage's result
+        # should not have to fetch the whole file to find it.
+        UPDATED=$(jq --argjson plan "$PLAN_ID" --arg planUrl "$PLAN_URL" \
+          --argjson planLog "$LOG_ID" --arg planLogUrl "$LOG_URL" \
+          --argjson envId "$ENV_ID" --arg envUrl "$ENV_URL" \
+          --argjson deploy "$EXISTING_DEPLOY" \
+          '. + { planJsonId: $plan, planJsonUrl: $planUrl,
+                 planLogId: $planLog,
+                 planLogUrl: (if $planLogUrl == "" then null else $planLogUrl end),
+                 envId: $envId,
+                 envUrl: (if $envUrl == "" then null else $envUrl end) } + $deploy' \
+          "$STATUS_FILE")
+
+        # Handed to the caller verbatim, so whatever reports this elsewhere cannot disagree
+        # with what the changeset says.
+        echo "stage_result=$(echo "$UPDATED" | jq -c .)" >> $GITHUB_OUTPUT
+
+        # Upsert, never rebuild: the other stages' entries must survive a single-stage run.
+        STAGES=$(echo "$EXISTING_STAGES" | jq --argjson u "$UPDATED" \
+          'if any(.[]; .name == $u.name) then map(if .name == $u.name then $u else . end) else . + [$u] end')
 
         jq -n --argjson stages "$STAGES" \
           --arg updatedAt "$(date +%s)" \
