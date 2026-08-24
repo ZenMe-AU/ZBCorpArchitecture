@@ -39,3 +39,10 @@ planfile
 selfService/backend/local.settings.json
 corpSetup/corp.env
 corpSetup/c25cloudfront/source/loginApp/config.js
+__azurite_db_blob__.json
+__azurite_db_blob_extent__.json
+__azurite_db_queue__.json
+__azurite_db_queue_extent__.json
+__azurite_db_table__.json
+__blobstorage__/
+AzuriteConfig
