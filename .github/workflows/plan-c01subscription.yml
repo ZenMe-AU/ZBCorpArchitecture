@@ -19,7 +19,6 @@ env:
   PLAN_FILE: tfplan
   JSON_PLAN_FILE: plan.json
   TERRAFORM_VERSION: 1.6.6
-  CHANGESET_PATH: corpSetup/deploymentChangeset.json
 
 jobs:
   plan:
@@ -47,12 +46,8 @@ jobs:
           azure_subscription_id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
           aws_role_arn: ${{ vars.AWS_ROLE_ARN }}
 
-  commit:
-    concurrency:
-      group: changeset-${{ github.ref }}
-      cancel-in-progress: false
+  report:
     permissions:
-      contents: write
       actions: read
       deployments: write
     environment: ${{ inputs.github_env_name }}
@@ -61,23 +56,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-      - id: commit_status
+      - id: report
         uses: ./.github/actions/commit-plan-status
         with:
           stage: c01
           dir: c01subscription
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          branch: ${{ env.BRANCH }}
           env_artifact_name: ${{ env.ENV_ARTIFACT }}
           env_path: ${{ env.ENV_PATH }}
           stage_status_file: ${{ env.STATUS_FILE }}
-          changeset_path: ${{ env.CHANGESET_PATH }}
-          corp_name: ${{ vars.NAME }}
-          dns: ${{ vars.DNS }}
           azure_signed_in: ${{ needs.plan.outputs.azure_signed_in || 'false' }}
           aws_signed_in: ${{ needs.plan.outputs.aws_signed_in || 'false' }}
+
       - uses: ./.github/actions/report-stage-result
         if: always()
         with:
@@ -86,6 +76,6 @@ jobs:
           ref: ${{ env.BRANCH }}
           kind: plan
           dir: c01subscription
-          state: ${{ fromJSON(steps.commit_status.outputs.stage_result || '{}').status == 'success' && 'success' || 'failure' }}
-          payload: ${{ steps.commit_status.outputs.stage_result }}
+          state: ${{ fromJSON(steps.report.outputs.stage_result || '{}').status == 'success' && 'success' || 'failure' }}
+          payload: ${{ steps.report.outputs.stage_result }}
           log_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}

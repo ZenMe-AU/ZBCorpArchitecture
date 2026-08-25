@@ -1,30 +1,17 @@
 name: Commit plan status
-description: Record one stage's plan result in deploymentChangeset.json and push it
+description: Gather one stage's plan result from this run's artifacts into a single JSON object
 
-# The mirror of commit-deploy-status: that one owns the deploy fields and carries the plan fields
-# forward, this one owns the plan fields and leaves the deploy fields alone.
 
 inputs:
   stage:
     description: "Stage code — the key the card matches on"
     required: true
   dir:
-    description: "Stage directory — also the stage's name in the changeset"
+    description: "Stage directory — also the stage's name in the report"
     required: true
   github_token:
     description: "Token for reading this run's artifact list"
     required: true
-  branch:
-    description: "Branch to rebase onto and push"
-    required: true
-  corp_name:
-    description: "vars.NAME, used in the commit author"
-    required: false
-    default: ""
-  dns:
-    description: "vars.DNS, used in the commit author"
-    required: false
-    default: ""
   azure_signed_in:
     required: false
     default: "false"
@@ -33,23 +20,20 @@ inputs:
     required: false
     default: "false"
     description: "Whether the AWS login succeeded"
-  changeset_path:
-    required: true
-    description: "Path to deploymentChangeset.json"
   env_artifact_name:
     required: true
     description: "Artifact holding the merged corp.env"
   env_path:
     required: true
-    description: "Where to restore corp.env — its basename is also the filename inside the artifact"
+    description: "Where corp.env lives — its basename is also the filename inside the artifact"
   stage_status_file:
     required: true
     description: "Status filename the stage wrote inside its artifact"
 
 outputs:
   stage_result:
-    description: "The entry written to the changeset — the same JSON a caller can report elsewhere"
-    value: ${{ steps.merge.outputs.stage_result }}
+    description: "The stage's whole plan result, ready to publish"
+    value: ${{ steps.build.outputs.stage_result }}
 
 runs:
   using: composite
@@ -74,27 +58,25 @@ runs:
         echo "HTTP status: $(echo "$RESPONSE" | tail -n1)"
 
         # Any bad response degrades to "no artifacts" rather than failing the run: the stage's own
-        # status still gets recorded, just without the plan and log links.
+        # status still gets reported, just without the plan and log links.
         if ! jq empty /tmp/artifactList.json 2>/dev/null || jq -e 'has("message")' /tmp/artifactList.json > /dev/null; then
           echo "Unusable artifact list:"
           cat /tmp/artifactList.json
           echo '{"artifacts":[]}' > /tmp/artifactList.json
         fi
 
-    - name: Merge this stage's plan result into the changeset
-      id: merge
+    - name: Build the report
+      id: build
       shell: bash
       env:
         DIR: ${{ inputs.dir }}
         STAGE: ${{ inputs.stage }}
-        CHANGESET: ${{ inputs.changeset_path }}
         AZURE_SIGNED_IN: ${{ inputs.azure_signed_in }}
         AWS_SIGNED_IN: ${{ inputs.aws_signed_in }}
         ENV_ARTIFACT_NAME: ${{ inputs.env_artifact_name }}
         ENV_PATH: ${{ inputs.env_path }}
         STAGE_STATUS_FILE: ${{ inputs.stage_status_file }}
       run: |
-        mkdir -p corpSetup
         ARTIFACTS=$(cat /tmp/artifactList.json)
 
         # This run planned exactly one stage, so read that one status file directly instead of
@@ -102,9 +84,9 @@ runs:
         STATUS_FILE="artifacts/${DIR}-status/${STAGE_STATUS_FILE}"
 
         # The plan job can die before it writes one — a failed login, for instance. Record the
-        # failure ourselves: the card polls this file and would otherwise just time out.
+        # failure ourselves: the card reads this report and would otherwise just time out.
         if [ ! -f "$STATUS_FILE" ]; then
-          echo "::warning::$STATUS_FILE is missing — recording the stage as failed"
+          echo "::warning::$STATUS_FILE is missing — reporting the stage as failed"
           mkdir -p "$(dirname "$STATUS_FILE")"
           jq -n --arg runId "${{ github.run_id }}" --arg stage "$STAGE" --arg name "$DIR" \
             '{ runId: $runId, stage: $stage, name: $name, planPath: "",
@@ -122,89 +104,40 @@ runs:
         LOG_ID=$(artifact_field "${DIR}-plan-log" id); [ -z "$LOG_ID" ] && LOG_ID=null
         LOG_URL=$(artifact_field "${DIR}-plan-log" archive_download_url)
 
-        ENV_ID=$(artifact_field "$ENV_ARTIFACT_NAME" id)
+        ENV_ID=$(artifact_field "$ENV_ARTIFACT_NAME" id); [ -z "$ENV_ID" ] && ENV_ID=null
         ENV_URL=$(artifact_field "$ENV_ARTIFACT_NAME" archive_download_url)
 
-        # A run that stopped at the login publishes no env. Keep pointing at the last good one
-        # rather than blanking the link the card reads.
-        if [ -z "$ENV_ID" ] && [ -f "$CHANGESET" ]; then
-          ENV_ID=$(jq -r '.envId // empty' "$CHANGESET")
-          ENV_URL=$(jq -r '.envUrl // empty' "$CHANGESET")
+        # The env goes in as an object rather than only as an artifact id: the artifact expires,
+        # the report does not, and the card would otherwise have to download and unzip it.
+        ENV_FILE="artifacts/${ENV_ARTIFACT_NAME}/$(basename "$ENV_PATH")"
+        ENV_JSON="{}"
+        if [ -f "$ENV_FILE" ]; then
+          ENV_JSON=$(jq -R -n '
+            [inputs
+             | select(test("^\\s*(#|$)") | not)
+             | capture("^\\s*(?<k>[^=]+?)\\s*=\\s*(?<v>.*?)\\s*$")
+             | select(.k != "")
+             # dotenv, which the card used to parse this artifact with, strips a surrounding
+             # quote pair. Match it so a value does not change meaning by changing source.
+             | .v |= sub("^\"(?<b>.*)\"$"; .b) | .v |= sub("^'(?<b>.*)'$"; .b)
+             | { (.k): .v }]
+            | add // {}' < "$ENV_FILE")
+        else
+          echo "::warning::$ENV_FILE is missing — reporting an empty env"
         fi
-        [ -z "$ENV_ID" ] && ENV_ID=null
 
-        EXISTING_STAGES="[]"
-        [ -f "$CHANGESET" ] && EXISTING_STAGES=$(jq '.stages // []' "$CHANGESET")
-
-        # Deploy fields belong to the deploy workflow; carry this stage's forward untouched.
-        EXISTING_DEPLOY=$(echo "$EXISTING_STAGES" | jq --arg name "$DIR" \
-          'map(select(.name==$name)) | first // {} |
-           { deployStatus: (.deployStatus // null), deployRunId: (.deployRunId // null),
-             deployPlanRunId: (.deployPlanRunId // null), deployedAt: (.deployedAt // null),
-             deployLogId: (.deployLogId // null), deployLogUrl: (.deployLogUrl // null) }')
-
-        # envId rides along with the stage rather than only at the top of the changeset: the env
-        # artifact belongs to the run that produced this plan, and a reader of one stage's result
-        # should not have to fetch the whole file to find it.
-        UPDATED=$(jq --argjson plan "$PLAN_ID" --arg planUrl "$PLAN_URL" \
+        REPORT=$(jq --argjson plan "$PLAN_ID" --arg planUrl "$PLAN_URL" \
           --argjson planLog "$LOG_ID" --arg planLogUrl "$LOG_URL" \
-          --argjson envId "$ENV_ID" --arg envUrl "$ENV_URL" \
-          --argjson deploy "$EXISTING_DEPLOY" \
+          --argjson envId "$ENV_ID" --arg envUrl "$ENV_URL" --argjson env "$ENV_JSON" \
+          --argjson azure "$AZURE_SIGNED_IN" --argjson aws "$AWS_SIGNED_IN" \
           '. + { planJsonId: $plan, planJsonUrl: $planUrl,
                  planLogId: $planLog,
                  planLogUrl: (if $planLogUrl == "" then null else $planLogUrl end),
                  envId: $envId,
-                 envUrl: (if $envUrl == "" then null else $envUrl end) } + $deploy' \
+                 envUrl: (if $envUrl == "" then null else $envUrl end),
+                 env: $env,
+                 azureSignedIn: $azure, awsSignedIn: $aws }' \
           "$STATUS_FILE")
 
-        # Handed to the caller verbatim, so whatever reports this elsewhere cannot disagree
-        # with what the changeset says.
-        echo "stage_result=$(echo "$UPDATED" | jq -c .)" >> $GITHUB_OUTPUT
-
-        # Upsert, never rebuild: the other stages' entries must survive a single-stage run.
-        STAGES=$(echo "$EXISTING_STAGES" | jq --argjson u "$UPDATED" \
-          'if any(.[]; .name == $u.name) then map(if .name == $u.name then $u else . end) else . + [$u] end')
-
-        jq -n --argjson stages "$STAGES" \
-          --arg updatedAt "$(date +%s)" \
-          --arg runId "${{ github.run_id }}" \
-          --argjson envId "$ENV_ID" --arg envUrl "$ENV_URL" \
-          --argjson azureOk "$AZURE_SIGNED_IN" --argjson awsOk "$AWS_SIGNED_IN" \
-          '{
-            runId: $runId,
-            updatedAt: ($updatedAt | tonumber),
-            envId: $envId,
-            envUrl: (if $envUrl == "" then null else $envUrl end),
-            azure: { configured: true, valid: $azureOk },
-            aws: { configured: true, valid: $awsOk },
-            stages: $stages
-          }' > "$CHANGESET"
-
-        # write-env uploaded the file at ENV_PATH, so inside the artifact it keeps that basename.
-        ENV_FILE="artifacts/${ENV_ARTIFACT_NAME}/$(basename "$ENV_PATH")"
-        if [ -f "$ENV_FILE" ]; then
-          cp "$ENV_FILE" "$ENV_PATH"
-        fi
-
-    - name: Commit and push the changeset
-      shell: bash
-      env:
-        DIR: ${{ inputs.dir }}
-        CORP_NAME: ${{ inputs.corp_name }}
-        DNS: ${{ inputs.dns }}
-        BRANCH: ${{ inputs.branch }}
-      run: |
-        GIT_NAME="${CORP_NAME:+$CORP_NAME }github actions"
-        git config user.name "$GIT_NAME"
-        git config user.email "${GIT_NAME// /_}@${DNS}"
-
-        git add corpSetup
-        git diff --cached --quiet || git commit -m "Update status: $DIR"
-
-        # Another stage may have pushed while this one planned, so rebase before pushing.
-        git fetch origin
-        git rebase "origin/$BRANCH" || {
-          echo "::error::Rebase onto origin/$BRANCH failed"
-          exit 1
-        }
-        git push origin "$BRANCH"
+        echo "stage_result=$(echo "$REPORT" | jq -c .)" >> $GITHUB_OUTPUT
+        echo "$REPORT" | jq '.env |= (keys | length | tostring + " keys")'
