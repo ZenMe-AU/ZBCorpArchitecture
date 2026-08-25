@@ -48,6 +48,7 @@ jobs:
 
   report:
     permissions:
+      contents: read
       actions: read
       deployments: write
     environment: ${{ inputs.github_env_name }}

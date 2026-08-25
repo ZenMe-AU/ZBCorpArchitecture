@@ -111,17 +111,24 @@ runs:
         # the report does not, and the card would otherwise have to download and unzip it.
         ENV_FILE="artifacts/${ENV_ARTIFACT_NAME}/$(basename "$ENV_PATH")"
         ENV_JSON="{}"
+
+        # In a file rather than inline: the program needs both quote characters, and a bare
+        # ' would close the shell string wrapped around it.
+        cat > /tmp/env.jq <<'JQ'
+        [inputs
+         | select(test("^\\s*(#|$)") | not)
+         | capture("^\\s*(?<k>[^=]+?)\\s*=\\s*(?<v>.*?)\\s*$")
+         | select(.k != "")
+         # dotenv, which the card used to parse this artifact with, strips a surrounding quote
+         # pair. Match it so a value does not change meaning by changing source.
+         | .v |= sub("^\"(?<b>.*)\"$"; .b)
+         | .v |= sub("^'(?<b>.*)'$"; .b)
+         | { (.k): .v }]
+        | add // {}
+        JQ
+
         if [ -f "$ENV_FILE" ]; then
-          ENV_JSON=$(jq -R -n '
-            [inputs
-             | select(test("^\\s*(#|$)") | not)
-             | capture("^\\s*(?<k>[^=]+?)\\s*=\\s*(?<v>.*?)\\s*$")
-             | select(.k != "")
-             # dotenv, which the card used to parse this artifact with, strips a surrounding
-             # quote pair. Match it so a value does not change meaning by changing source.
-             | .v |= sub("^\"(?<b>.*)\"$"; .b) | .v |= sub("^'(?<b>.*)'$"; .b)
-             | { (.k): .v }]
-            | add // {}' < "$ENV_FILE")
+          ENV_JSON=$(jq -R -n -f /tmp/env.jq < "$ENV_FILE")
         else
           echo "::warning::$ENV_FILE is missing — reporting an empty env"
         fi
