@@ -1,0 +1,34 @@
+name: Remote Azure Login
+
+# Opens a browser terminal for `az login --use-device-code`; no Terraform runs here.
+on:
+  workflow_dispatch:
+    inputs:
+      session_id:
+        required: true
+        description: "Terminal session id registered by ZenInstaller"
+      dir:
+        required: false
+        description: "Stage directory the session was started from"
+      github_env_name:
+        required: false
+        description: "GitHub Environment name"
+
+permissions:
+  contents: read
+
+jobs:
+  remote-login:
+    name: Remote login for ${{ inputs.dir || 'the corp environment' }}
+    environment: ${{ inputs.github_env_name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/remote-login
+        with:
+          session_id: ${{ inputs.session_id }}
+          webpubsub_endpoint: ${{ secrets.WEBPUBSUB_ENDPOINT }}
+          webpubsub_key: ${{ secrets.WEBPUBSUB_KEY }}
+          hub_name: ${{ secrets.HUB_NAME || 'terminal' }}
+          session_ttl: "1800"

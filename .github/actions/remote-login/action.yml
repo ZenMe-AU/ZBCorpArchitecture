@@ -1,0 +1,61 @@
+name: Remote login terminal
+description: Attach a browser terminal to `az login --use-device-code` on this runner
+
+# The browser keeps the session's access token, so only the session id is passed in here.
+inputs:
+  session_id:
+    required: true
+    description: "Terminal session id the browser registered before dispatching this run"
+  webpubsub_endpoint:
+    required: true
+    description: "Web PubSub host, e.g. zenme-azure-remote-login.webpubsub.azure.com"
+  webpubsub_key:
+    required: true
+    description: "Web PubSub access key"
+  hub_name:
+    required: false
+    default: "terminal"
+    description: "Hub the session group lives in"
+  session_ttl:
+    required: false
+    default: "1800"
+    description: "Seconds the session may stay open"
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: "22"
+
+    - name: Install the Azure CLI
+      shell: bash
+      run: |
+        if command -v az >/dev/null 2>&1; then
+          az version
+        else
+          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+        fi
+
+    - name: Install the agent's dependencies
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: npm install --no-audit --no-fund
+
+    # The device login has to start from a clean slate, or `az login` reuses a cached account.
+    - name: Clear cached Azure credentials
+      shell: bash
+      run: |
+        az logout 2>/dev/null || true
+        rm -rf ~/.azure 2>/dev/null || true
+
+    - name: Attach the terminal and run the device login
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: node agent.js
+      env:
+        SESSION_ID: ${{ inputs.session_id }}
+        WEBPUBSUB_ENDPOINT: ${{ inputs.webpubsub_endpoint }}
+        WEBPUBSUB_KEY: ${{ inputs.webpubsub_key }}
+        HUB_NAME: ${{ inputs.hub_name }}
+        SESSION_TTL: ${{ inputs.session_ttl }}
