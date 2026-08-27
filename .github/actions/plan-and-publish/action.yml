@@ -60,22 +60,16 @@ runs:
       working-directory: ${{ inputs.setup_dir }}/${{ inputs.dir }}
       env:
         DIR: ${{ inputs.dir }}
-        SETUP_DIR: ${{ inputs.setup_dir }}
         STATUS_FILE: ${{ inputs.stage_status_file }}
-        JSON_PLAN_FILE: ${{ inputs.json_plan_file }}
         OUTCOME: ${{ steps.plan.outcome }}
       run: |
         STATUS="failed"
-        PLAN_PATH=""
         if [ "$OUTCOME" = "success" ]; then
           STATUS="success"
-          PLAN_PATH="${SETUP_DIR}/${DIR}/${JSON_PLAN_FILE}"
         fi
 
-        jq -n --arg runId "${{ github.run_id }}" --arg stage "$DIR" \
-          --arg planPath "$PLAN_PATH" --arg status "$STATUS" \
-          '{ runId: $runId, stage: $stage, planPath: $planPath,
-             status: $status, timestamp: (now | floor) }' > "$STATUS_FILE"
+        jq -n --arg runId "${{ github.run_id }}" --arg stage "$DIR" --arg status "$STATUS" \
+          '{ runId: $runId, stage: $stage, status: $status, timestamp: (now | floor) }' > "$STATUS_FILE"
         cat "$STATUS_FILE"
 
     # "failed" on its own tells the card nothing. This is the only record of why, so it goes up

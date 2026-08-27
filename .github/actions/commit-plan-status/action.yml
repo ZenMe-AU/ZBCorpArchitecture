@@ -86,8 +86,7 @@ runs:
           echo "::warning::$STATUS_FILE is missing — reporting the stage as failed"
           mkdir -p "$(dirname "$STATUS_FILE")"
           jq -n --arg runId "${{ github.run_id }}" --arg stage "$DIR" \
-            '{ runId: $runId, stage: $stage, planPath: "",
-               status: "failed", timestamp: (now | floor) }' > "$STATUS_FILE"
+            '{ runId: $runId, stage: $stage, status: "failed", timestamp: (now | floor) }' > "$STATUS_FILE"
         fi
 
         artifact_field() {
