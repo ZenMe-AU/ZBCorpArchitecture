@@ -1,21 +1,12 @@
 name: Plan and publish
 description: Run one stage's Terraform plan and publish its status, log, and plan artifacts
 
-# Replaces update-stage-status on the per-stage path. That action still serves the old
-# planChanges.yml, and its five artifact steps are pinned to node20 actions.
-#
-# Two things it deliberately does not carry over:
-#   - the needs_azure/azure_ok gating, now dead: a failed login stops the job before this runs
-#   - the -tfplan and -dist artifacts, which nothing downloads (-tfplan is already inside -pkg,
-#     and the -dist upload had been commented out)
-#
-# Filenames come from the caller so the commit job reads back exactly what this wrote.
 inputs:
-  stage:
-    description: "Stage code"
+  setup_dir:
+    description: "Directory holding the stage directories and initCorpEnvDeploy.js"
     required: true
   dir:
-    description: "Stage directory under corpSetup"
+    description: "Stage directory, relative to setup_dir"
     required: true
   stage_status_file:
     description: "Status filename to write inside the stage directory"
@@ -30,22 +21,29 @@ inputs:
 runs:
   using: composite
   steps:
-    # Best-effort: a failed plan is the outcome to report, not a reason to skip reporting it.
-    # tee keeps the output in the Actions log as well as in the artifact the card reads, and
-    # pipefail is set explicitly so tee's success cannot mask a failed plan.
     - name: Plan the stage
       id: plan
       continue-on-error: true
       shell: bash
-      working-directory: corpSetup
+      working-directory: ${{ inputs.setup_dir }}
+      env:
+        DIR: ${{ inputs.dir }}
       run: |
         set -o pipefail
-        node initCorpEnvDeploy.js --stage=${{ inputs.stage }} --planOnly 2>&1 | tee /tmp/plan_output.txt
+
+        # TODO: change initCorpEnvDeploy to accept dir name
+        STAGE_CODE=$(printf '%s' "$DIR" | grep -oE '^c[0-9]{2}')
+        if [ -z "$STAGE_CODE" ]; then
+          echo "::error::Cannot derive a cXX stage code from directory '$DIR'"
+          exit 1
+        fi
+
+        node initCorpEnvDeploy.js --stage="$STAGE_CODE" --planOnly 2>&1 | tee /tmp/plan_output.txt
 
     - name: Convert the plan to JSON
       if: steps.plan.outcome == 'success'
       shell: bash
-      working-directory: corpSetup/${{ inputs.dir }}
+      working-directory: ${{ inputs.setup_dir }}/${{ inputs.dir }}
       env:
         PLAN_FILE: ${{ inputs.plan_file }}
         JSON_PLAN_FILE: ${{ inputs.json_plan_file }}
@@ -59,10 +57,10 @@ runs:
     - name: Write status
       if: always()
       shell: bash
-      working-directory: corpSetup/${{ inputs.dir }}
+      working-directory: ${{ inputs.setup_dir }}/${{ inputs.dir }}
       env:
         DIR: ${{ inputs.dir }}
-        STAGE: ${{ inputs.stage }}
+        SETUP_DIR: ${{ inputs.setup_dir }}
         STATUS_FILE: ${{ inputs.stage_status_file }}
         JSON_PLAN_FILE: ${{ inputs.json_plan_file }}
         OUTCOME: ${{ steps.plan.outcome }}
@@ -71,12 +69,12 @@ runs:
         PLAN_PATH=""
         if [ "$OUTCOME" = "success" ]; then
           STATUS="success"
-          PLAN_PATH="corpSetup/${DIR}/${JSON_PLAN_FILE}"
+          PLAN_PATH="${SETUP_DIR}/${DIR}/${JSON_PLAN_FILE}"
         fi
 
-        jq -n --arg runId "${{ github.run_id }}" --arg stage "$STAGE" --arg name "$DIR" \
+        jq -n --arg runId "${{ github.run_id }}" --arg stage "$DIR" \
           --arg planPath "$PLAN_PATH" --arg status "$STATUS" \
-          '{ runId: $runId, stage: $stage, name: $name, planPath: $planPath,
+          '{ runId: $runId, stage: $stage, planPath: $planPath,
              status: $status, timestamp: (now | floor) }' > "$STATUS_FILE"
         cat "$STATUS_FILE"
 
@@ -96,7 +94,7 @@ runs:
       with:
         if-no-files-found: ignore
         name: ${{ inputs.dir }}-status
-        path: corpSetup/${{ inputs.dir }}/${{ inputs.stage_status_file }}
+        path: ${{ inputs.setup_dir }}/${{ inputs.dir }}/${{ inputs.stage_status_file }}
 
     - name: Upload the readable plan
       if: steps.plan.outcome == 'success'
@@ -104,7 +102,7 @@ runs:
       with:
         if-no-files-found: ignore
         name: ${{ inputs.dir }}-planJson
-        path: corpSetup/${{ inputs.dir }}/${{ inputs.json_plan_file }}
+        path: ${{ inputs.setup_dir }}/${{ inputs.dir }}/${{ inputs.json_plan_file }}
 
     # The whole stage directory, including .terraform and the binary plan — this is what the
     # deploy path downloads and applies.
@@ -115,4 +113,4 @@ runs:
         if-no-files-found: ignore
         include-hidden-files: true
         name: ${{ inputs.dir }}-pkg
-        path: corpSetup/${{ inputs.dir }}/
+        path: ${{ inputs.setup_dir }}/${{ inputs.dir }}/

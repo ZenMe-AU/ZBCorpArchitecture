@@ -24,15 +24,15 @@ inputs:
     description: "JSON object describing the result; read back verbatim by the card"
     required: true
   log_url:
-    description: "Where to look at what happened"
+    description: "Where to look at what happened; defaults to this run"
     required: false
     default: ""
 
 runs:
   using: composite
   steps:
-    # Best-effort while the changeset is still authoritative: a failed report must not fail a run
-    # whose plan actually succeeded. Once the card reads deployments instead, this should hard-fail.
+    # Fatal, not best-effort: this Deployment is the only record of the run. A green job whose
+    # result never arrived leaves the card polling until it gives up.
     - name: Record the result as a Deployment
       shell: bash
       env:
@@ -43,21 +43,21 @@ runs:
         DIR: ${{ inputs.dir }}
         STATE: ${{ inputs.state }}
         PAYLOAD: ${{ inputs.payload }}
-        LOG_URL: ${{ inputs.log_url }}
+        LOG_URL: ${{ inputs.log_url || format('{0}/{1}/actions/runs/{2}', github.server_url, github.repository, github.run_id) }}
         API: ${{ github.api_url }}/repos/${{ github.repository }}
       run: |
         set -o pipefail
 
         if [ -z "$ENVIRONMENT" ]; then
-          echo "::warning::No environment given — skipping the deployment record"
-          exit 0
+          echo "::error::No environment given — the result cannot be recorded"
+          exit 1
         fi
         # jq empty accepts empty input, so emptiness is checked separately — an upstream step that
         # never produced its output hands us "" and --argjson would then fail mid-script.
         if [ -z "$PAYLOAD" ] || ! echo "$PAYLOAD" | jq -e 'type == "object"' >/dev/null 2>&1; then
-          echo "::warning::payload is not a JSON object — skipping the deployment record"
+          echo "::error::payload is not a JSON object — the result cannot be recorded"
           echo "payload was: '$PAYLOAD'"
-          exit 0
+          exit 1
         fi
 
         post() {
@@ -82,9 +82,9 @@ runs:
         DEPLOYMENT=$(echo "$RESPONSE" | sed '$d')
 
         if [ "$CODE" != "201" ]; then
-          echo "::warning::Could not create the deployment (HTTP $CODE)"
+          echo "::error::Could not create the deployment (HTTP $CODE)"
           echo "$DEPLOYMENT"
-          exit 0
+          exit 1
         fi
 
         ID=$(echo "$DEPLOYMENT" | jq -r '.id')
@@ -95,5 +95,6 @@ runs:
           '{ state: $state, description: $desc } + (if $log == "" then {} else { log_url: $log } end)')
         STATUS=$(post "$API/deployments/$ID/statuses" "$STATUS_BODY") || true
         SCODE=$(echo "$STATUS" | tail -n1)
+        # The payload already carries the outcome the card reads, so a missing status line is
+        # a warning rather than a lost result.
         [ "$SCODE" = "201" ] || { echo "::warning::Could not set the deployment status (HTTP $SCODE)"; echo "$STATUS" | sed '$d'; }
-        exit 0

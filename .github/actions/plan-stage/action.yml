@@ -6,11 +6,11 @@ description: Sign in, publish the merged env, install the toolchain, and run one
 # commit job reads them, so a per-action default is exactly how the two sides drift apart.
 # The workflow declares each one once and passes it to both.
 inputs:
-  stage:
-    description: "Stage code"
+  setup_dir:
+    description: "Directory holding the stage directories and initCorpEnvDeploy.js"
     required: true
   dir:
-    description: "Stage directory under corpSetup"
+    description: "Stage directory, relative to setup_dir"
     required: true
   azure_client_id:
     required: false
@@ -64,7 +64,7 @@ runs:
     - id: clouds
       uses: ./.github/actions/read-terraform-providers
       with:
-        stage_dir: corpSetup/${{ inputs.dir }}
+        stage_dir: ${{ inputs.setup_dir }}/${{ inputs.dir }}
 
     # Signing in comes first. Everything below costs a runner minute or an artifact, and a stage
     # that cannot authenticate is going to fail regardless — so spend nothing until it has.
@@ -102,7 +102,7 @@ runs:
     - name: Plan and publish
       uses: ./.github/actions/plan-and-publish
       with:
-        stage: ${{ inputs.stage }}
+        setup_dir: ${{ inputs.setup_dir }}
         dir: ${{ inputs.dir }}
         stage_status_file: ${{ inputs.stage_status_file }}
         plan_file: ${{ inputs.plan_file }}

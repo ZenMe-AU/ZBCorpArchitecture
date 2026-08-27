@@ -3,14 +3,17 @@ description: Gather one stage's plan result from this run's artifacts into a sin
 
 
 inputs:
-  stage:
-    description: "Stage code — the key the card matches on"
-    required: true
   dir:
     description: "Stage directory — also the stage's name in the report"
     required: true
   github_token:
-    description: "Token for reading this run's artifact list"
+    description: "Token for reading this run's artifact list and publishing the result"
+    required: true
+  environment:
+    description: "GitHub Environment the result belongs to"
+    required: true
+  ref:
+    description: "Branch the run was for"
     required: true
   azure_signed_in:
     required: false
@@ -29,11 +32,6 @@ inputs:
   stage_status_file:
     required: true
     description: "Status filename the stage wrote inside its artifact"
-
-outputs:
-  stage_result:
-    description: "The stage's whole plan result, ready to publish"
-    value: ${{ steps.build.outputs.stage_result }}
 
 runs:
   using: composite
@@ -70,7 +68,6 @@ runs:
       shell: bash
       env:
         DIR: ${{ inputs.dir }}
-        STAGE: ${{ inputs.stage }}
         AZURE_SIGNED_IN: ${{ inputs.azure_signed_in }}
         AWS_SIGNED_IN: ${{ inputs.aws_signed_in }}
         ENV_ARTIFACT_NAME: ${{ inputs.env_artifact_name }}
@@ -88,8 +85,8 @@ runs:
         if [ ! -f "$STATUS_FILE" ]; then
           echo "::warning::$STATUS_FILE is missing — reporting the stage as failed"
           mkdir -p "$(dirname "$STATUS_FILE")"
-          jq -n --arg runId "${{ github.run_id }}" --arg stage "$STAGE" --arg name "$DIR" \
-            '{ runId: $runId, stage: $stage, name: $name, planPath: "",
+          jq -n --arg runId "${{ github.run_id }}" --arg stage "$DIR" \
+            '{ runId: $runId, stage: $stage, planPath: "",
                status: "failed", timestamp: (now | floor) }' > "$STATUS_FILE"
         fi
 
@@ -147,4 +144,15 @@ runs:
           "$STATUS_FILE")
 
         echo "stage_result=$(echo "$REPORT" | jq -c .)" >> $GITHUB_OUTPUT
+        echo "state=$(echo "$REPORT" | jq -r 'if .status == "success" then "success" else "failure" end')" >> $GITHUB_OUTPUT
         echo "$REPORT" | jq '.env |= (keys | length | tostring + " keys")'
+
+    - uses: ./.github/actions/report-stage-result
+      with:
+        github_token: ${{ inputs.github_token }}
+        environment: ${{ inputs.environment }}
+        ref: ${{ inputs.ref }}
+        kind: plan
+        dir: ${{ inputs.dir }}
+        state: ${{ steps.build.outputs.state }}
+        payload: ${{ steps.build.outputs.stage_result }}

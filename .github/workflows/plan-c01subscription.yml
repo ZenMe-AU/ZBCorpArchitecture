@@ -13,6 +13,8 @@ permissions:
 
 env:
   BRANCH: ${{ github.ref_name }}
+  STAGE_DIR: c01subscription
+  SETUP_DIR: corpSetup
   ENV_ARTIFACT: new-env
   ENV_PATH: corpSetup/corp.env
   STATUS_FILE: status.json
@@ -32,8 +34,8 @@ jobs:
       - id: plan_stage
         uses: ./.github/actions/plan-stage
         with:
-          stage: c01
-          dir: c01subscription
+          setup_dir: ${{ env.SETUP_DIR }}
+          dir: ${{ env.STAGE_DIR }}
           vars_json: ${{ toJSON(vars) }}
           env_artifact_name: ${{ env.ENV_ARTIFACT }}
           env_path: ${{ env.ENV_PATH }}
@@ -57,26 +59,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - id: report
-        uses: ./.github/actions/commit-plan-status
+      - uses: ./.github/actions/commit-plan-status
         with:
-          stage: c01
-          dir: c01subscription
+          dir: ${{ env.STAGE_DIR }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          environment: ${{ inputs.github_env_name }}
+          ref: ${{ env.BRANCH }}
           env_artifact_name: ${{ env.ENV_ARTIFACT }}
           env_path: ${{ env.ENV_PATH }}
           stage_status_file: ${{ env.STATUS_FILE }}
           azure_signed_in: ${{ needs.plan.outputs.azure_signed_in || 'false' }}
           aws_signed_in: ${{ needs.plan.outputs.aws_signed_in || 'false' }}
-
-      - uses: ./.github/actions/report-stage-result
-        if: always()
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          environment: ${{ inputs.github_env_name }}
-          ref: ${{ env.BRANCH }}
-          kind: plan
-          dir: c01subscription
-          state: ${{ fromJSON(steps.report.outputs.stage_result || '{}').status == 'success' && 'success' || 'failure' }}
-          payload: ${{ steps.report.outputs.stage_result }}
-          log_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
