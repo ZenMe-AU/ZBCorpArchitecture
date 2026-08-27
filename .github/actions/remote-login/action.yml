@@ -20,6 +20,14 @@ inputs:
     required: false
     default: "1800"
     description: "Seconds the session may stay open"
+  tenant_id:
+    required: false
+    default: ""
+    description: "Tenant to sign in to; blank uses the account's home tenant"
+  subscription_id:
+    required: false
+    default: ""
+    description: "Subscription to select after login; blank leaves whichever one az defaulted to"
 
 runs:
   using: composite
@@ -49,6 +57,10 @@ runs:
         az logout 2>/dev/null || true
         rm -rf ~/.azure 2>/dev/null || true
 
+    - name: Skip the interactive subscription picker
+      shell: bash
+      run: az config set core.login_experience_v2=off
+
     - name: Attach the terminal and run the device login
       shell: bash
       working-directory: ${{ github.action_path }}
@@ -59,3 +71,5 @@ runs:
         WEBPUBSUB_KEY: ${{ inputs.webpubsub_key }}
         HUB_NAME: ${{ inputs.hub_name }}
         SESSION_TTL: ${{ inputs.session_ttl }}
+        AZURE_TENANT_ID: ${{ inputs.tenant_id }}
+        AZURE_SUBSCRIPTION_ID: ${{ inputs.subscription_id }}

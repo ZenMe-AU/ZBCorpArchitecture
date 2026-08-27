@@ -12,6 +12,7 @@
  */
 
 import crypto from "crypto";
+import { execFileSync } from "child_process";
 import pty from "node-pty";
 import { WebSocket } from "ws";
 import { WebPubSubServiceClient } from "@azure/web-pubsub";
@@ -21,6 +22,8 @@ const SESSION_ID = process.env.SESSION_ID;
 const ENDPOINT = process.env.WEBPUBSUB_ENDPOINT;
 const KEY = process.env.WEBPUBSUB_KEY;
 const HUB = process.env.HUB_NAME || "terminal";
+const TENANT_ID = process.env.AZURE_TENANT_ID?.trim();
+const SUBSCRIPTION_ID = process.env.AZURE_SUBSCRIPTION_ID?.trim();
 const SESSION_TTL = parseInt(process.env.SESSION_TTL || "1800", 10);
 const COLS = 120;
 const ROWS = 24;
@@ -78,9 +81,37 @@ async function main() {
     process.exit(loginExitCode === 0 ? 0 : 1);
   }
 
+  function selectSubscription() {
+    if (!SUBSCRIPTION_ID) {
+      const warning = "AZURE_SUBSCRIPTION_ID is not set — staying on whichever subscription az defaulted to";
+      console.log(`::warning::${warning}`);
+      send({ type: "terminal", data: `\r\n${warning}\r\n` });
+      return true;
+    }
+    try {
+      execFileSync("az", ["account", "set", "--subscription", SUBSCRIPTION_ID], { stdio: "pipe" });
+      const name = execFileSync("az", ["account", "show", "--query", "name", "-o", "tsv"], { encoding: "utf8" }).trim();
+      console.log(`Subscription set to ${name} (${SUBSCRIPTION_ID})`);
+      send({ type: "terminal", data: `\r\nSubscription set to ${name}\r\n` });
+      return true;
+    } catch (err) {
+      const detail = err.stderr?.toString().trim() || err.message;
+      console.error(`::error::Could not select subscription ${SUBSCRIPTION_ID}: ${detail}`);
+      send({ type: "terminal", data: `\r\nCould not select subscription ${SUBSCRIPTION_ID}\r\n${detail}\r\n` });
+      return false;
+    }
+  }
+
   function startAzLogin() {
     send({ type: "stage", stage: "login" });
-    child = pty.spawn("az", ["login", "--use-device-code"], { cols: COLS, rows: ROWS, cwd: process.cwd(), env: process.env });
+
+    // Scoping the login itself beats switching afterwards: the device code is issued by this tenant.
+    const args = ["login", "--use-device-code"];
+    if (TENANT_ID) args.push("--tenant", TENANT_ID);
+    else console.log("::warning::AZURE_TENANT_ID is not set — signing in to the account's home tenant");
+    console.log(`Starting: az ${args.join(" ")}`);
+
+    child = pty.spawn("az", args, { cols: COLS, rows: ROWS, cwd: process.cwd(), env: process.env });
 
     child.onData((data) => {
       process.stdout.write(data);
@@ -95,11 +126,15 @@ async function main() {
 
     child.onExit(({ exitCode }) => {
       loginExitCode = exitCode;
-      if (exitCode === 0) {
+      if (exitCode !== 0) {
+        send({ type: "loginFailed", exitCode });
+        send({ type: "stage", stage: "error" });
+      } else if (selectSubscription()) {
         send({ type: "loginCompleted" });
         send({ type: "stage", stage: "done" });
       } else {
-        send({ type: "loginFailed", exitCode });
+        loginExitCode = 1;
+        send({ type: "loginFailed", exitCode: 1 });
         send({ type: "stage", stage: "error" });
       }
       // Give the last frames a moment to reach the browser before the socket closes.
