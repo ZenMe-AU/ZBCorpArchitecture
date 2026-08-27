@@ -1,6 +1,5 @@
-name: Commit plan status
-description: Gather one stage's plan result from this run's artifacts into a single JSON object
-
+name: Report plan result
+description: Gather one stage's plan result from this run's artifacts and report the outcome
 
 inputs:
   dir:
@@ -146,7 +145,7 @@ runs:
         echo "state=$(echo "$REPORT" | jq -r 'if .status == "success" then "success" else "failure" end')" >> $GITHUB_OUTPUT
         echo "$REPORT" | jq '.env |= (keys | length | tostring + " keys")'
 
-    - uses: ./.github/actions/report-stage-result
+    - uses: ./.github/actions/record-deployment
       with:
         github_token: ${{ inputs.github_token }}
         environment: ${{ inputs.environment }}

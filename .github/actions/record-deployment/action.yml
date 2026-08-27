@@ -1,4 +1,4 @@
-name: Report stage result
+name: Record deployment
 description: Record one stage's plan or deploy result as a GitHub Deployment
 
 inputs:

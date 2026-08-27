@@ -53,7 +53,7 @@ runs:
         fi
 
     # Built with jq rather than a heredoc so it matches, field for field, the entry
-    # commit-plan-status synthesises when this artifact never arrives.
+    # report-plan-result synthesises when this artifact never arrives.
     - name: Write status
       if: always()
       shell: bash

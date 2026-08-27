@@ -1,5 +1,5 @@
 name: Read Terraform providers
-description: Read the providers a stage's Terraform declares, and report which clouds it must sign in to
+description: Read the providers a stage's Terraform declares, and name which clouds it must sign in to
 
 # Replaces a hand-kept needs_azure/needs_aws flag per stage. The Terraform is the thing that
 # actually decides, so there is no second list that can drift away from it.

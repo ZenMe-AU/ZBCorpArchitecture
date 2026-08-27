@@ -1,10 +1,6 @@
 name: Plan stage
 description: Sign in, publish the merged env, install the toolchain, and run one stage's Terraform plan
 
-# vars and secrets are not readable inside a composite action, so the caller passes what it needs.
-# Paths and artifact names carry no defaults on purpose: the plan job writes them and the
-# commit job reads them, so a per-action default is exactly how the two sides drift apart.
-# The workflow declares each one once and passes it to both.
 inputs:
   setup_dir:
     description: "Directory holding the stage directories and initCorpEnvDeploy.js"
@@ -39,7 +35,7 @@ inputs:
     description: "Where corp.env lives in the checkout"
   stage_status_file:
     required: true
-    description: "Status filename the commit job will look for inside the stage's artifact"
+    description: "Status filename the report job will look for inside the stage's artifact"
   plan_file:
     required: true
     description: "Binary plan filename — the deploy path applies this same name"

@@ -1,10 +1,6 @@
 name: Publish env
-description: Merge the repo's GitHub variables into corp.env and publish it as an artifact for the commit job
+description: Merge the repo's GitHub variables into corp.env and publish it as an artifact for the report job
 
-# vars and secrets are not readable inside a composite action, so the caller passes what it needs.
-# Paths and artifact names carry no defaults on purpose: the plan job writes them and the
-# commit job reads them, so a per-action default is exactly how the two sides drift apart.
-# The workflow declares each one once and passes it to both.
 inputs:
   vars_json:
     description: "toJSON(vars) from the calling workflow"
