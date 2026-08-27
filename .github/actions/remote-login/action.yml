@@ -28,6 +28,14 @@ inputs:
     required: false
     default: ""
     description: "Subscription to select after login; blank leaves whichever one az defaulted to"
+  aws_login:
+    required: false
+    default: "true"
+    description: 'Run `aws login --remote` after the Azure sign-in; "false" stops at Azure'
+  aws_region:
+    required: false
+    default: "us-east-1"
+    description: "Region the AWS sign-in runs against"
 
 runs:
   using: composite
@@ -73,3 +81,5 @@ runs:
         SESSION_TTL: ${{ inputs.session_ttl }}
         AZURE_TENANT_ID: ${{ inputs.tenant_id }}
         AZURE_SUBSCRIPTION_ID: ${{ inputs.subscription_id }}
+        AWS_LOGIN: ${{ inputs.aws_login }}
+        AWS_REGION: ${{ inputs.aws_region }}

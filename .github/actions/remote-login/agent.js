@@ -24,6 +24,8 @@ const KEY = process.env.WEBPUBSUB_KEY;
 const HUB = process.env.HUB_NAME || "terminal";
 const TENANT_ID = process.env.AZURE_TENANT_ID?.trim();
 const SUBSCRIPTION_ID = process.env.AZURE_SUBSCRIPTION_ID?.trim();
+const AWS_LOGIN = process.env.AWS_LOGIN?.trim() !== "false";
+const AWS_REGION = process.env.AWS_REGION?.trim() || "us-east-1";
 const SESSION_TTL = parseInt(process.env.SESSION_TTL || "1800", 10);
 const COLS = 120;
 const ROWS = 24;
@@ -53,7 +55,6 @@ async function getClientUrl() {
 async function main() {
   console.log(`Joining terminal session ${SESSION_ID}`);
   const ws = new WebSocket(await getClientUrl(), "json.webpubsub.azure.v1");
-  const detector = new DeviceCodeDetector();
   let child = null;
   let joined = false;
   let finished = false;
@@ -77,7 +78,7 @@ async function main() {
     finished = true;
     if (child) child.kill();
     if (ws.readyState === WebSocket.OPEN) ws.close();
-    console.log(`Device login ${loginExitCode === 0 ? "SUCCESS" : "FAILED"}`);
+    console.log(`Remote login ${loginExitCode === 0 ? "SUCCESS" : "FAILED"}`);
     process.exit(loginExitCode === 0 ? 0 : 1);
   }
 
@@ -102,16 +103,16 @@ async function main() {
     }
   }
 
-  function startAzLogin() {
-    send({ type: "stage", stage: "login" });
+  // Both logins share the PTY plumbing and the streaming; only the command and the cloud differ.
+  function runLogin({ cloud, command, args, env, onSuccess }) {
+    console.log(`Starting: ${command} ${args.join(" ")}`);
+    const detector = new DeviceCodeDetector(cloud);
+    detector.on("deviceCode", ({ url, code }) => {
+      console.log(`::notice::${cloud} device code ${code} — sign in at ${url}`);
+      send({ type: "deviceCode", cloud, url, code });
+    });
 
-    // Scoping the login itself beats switching afterwards: the device code is issued by this tenant.
-    const args = ["login", "--use-device-code"];
-    if (TENANT_ID) args.push("--tenant", TENANT_ID);
-    else console.log("::warning::AZURE_TENANT_ID is not set — signing in to the account's home tenant");
-    console.log(`Starting: az ${args.join(" ")}`);
-
-    child = pty.spawn("az", args, { cols: COLS, rows: ROWS, cwd: process.cwd(), env: process.env });
+    child = pty.spawn(command, args, { cols: COLS, rows: ROWS, cwd: process.cwd(), env: env ?? process.env });
 
     child.onData((data) => {
       process.stdout.write(data);
@@ -119,26 +120,68 @@ async function main() {
       detector.feed(data);
     });
 
-    detector.on("deviceCode", ({ url, code }) => {
-      console.log(`::notice::Device code ${code} — sign in at ${url}`);
-      send({ type: "deviceCode", url, code });
-    });
-
     child.onExit(({ exitCode }) => {
-      loginExitCode = exitCode;
       if (exitCode !== 0) {
-        send({ type: "loginFailed", exitCode });
+        loginExitCode = exitCode;
+        send({ type: "loginFailed", cloud, exitCode });
         send({ type: "stage", stage: "error" });
-      } else if (selectSubscription()) {
-        send({ type: "loginCompleted" });
-        send({ type: "stage", stage: "done" });
-      } else {
-        loginExitCode = 1;
-        send({ type: "loginFailed", exitCode: 1 });
-        send({ type: "stage", stage: "error" });
+        setTimeout(finish, 1000);
+        return;
       }
-      // Give the last frames a moment to reach the browser before the socket closes.
-      setTimeout(finish, 1000);
+      onSuccess();
+    });
+  }
+
+  function fail(cloud, exitCode) {
+    loginExitCode = exitCode;
+    send({ type: "loginFailed", cloud, exitCode });
+    send({ type: "stage", stage: "error" });
+    setTimeout(finish, 1000);
+  }
+
+  function succeed() {
+    loginExitCode = 0;
+    send({ type: "stage", stage: "done" });
+    setTimeout(finish, 1000);
+  }
+
+  function startAzLogin() {
+    send({ type: "stage", stage: "azure-login" });
+
+    // Scoping the login itself beats switching afterwards: the device code is issued by this tenant.
+    const args = ["login", "--use-device-code"];
+    if (TENANT_ID) args.push("--tenant", TENANT_ID);
+    else console.log("::warning::AZURE_TENANT_ID is not set — signing in to the account's home tenant");
+
+    runLogin({
+      cloud: "azure",
+      command: "az",
+      args,
+      onSuccess: () => {
+        if (!selectSubscription()) return fail("azure", 1);
+        send({ type: "loginCompleted", cloud: "azure" });
+        startAwsLogin();
+      },
+    });
+  }
+
+  // `aws login --remote` prints a console sign-in URL and waits for the code pasted back.
+  function startAwsLogin() {
+    if (!AWS_LOGIN) {
+      console.log("AWS_LOGIN=false — finishing after the Azure sign-in");
+      return succeed();
+    }
+
+    send({ type: "stage", stage: "aws-login" });
+    runLogin({
+      cloud: "aws",
+      command: "aws",
+      args: ["login", "--remote"],
+      env: { ...process.env, AWS_DEFAULT_REGION: AWS_REGION },
+      onSuccess: () => {
+        send({ type: "loginCompleted", cloud: "aws" });
+        succeed();
+      },
     });
   }
 
