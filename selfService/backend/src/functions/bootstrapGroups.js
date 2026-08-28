@@ -84,6 +84,7 @@ async function resolveGroupId(token, displayName) {
   return group.id;
 }
 
+// this function resolves the ID of an administrative unit by its display name
 async function resolveAdministrativeUnitId(token, displayName) {
   const escaped = displayName.replace(/'/g, "''");
   const filter = encodeURIComponent(`displayName eq '${escaped}'`);
@@ -141,6 +142,7 @@ async function addUserToGroup(token, groupId, userId) {
   await addMemberByRef(token, `/groups/${groupId}/members/$ref`, userId);
 }
 
+// this function adds a user to an administrative unit
 async function addUserToAdministrativeUnit(token, auId, userId) {
   const res = await fetch(`https://graph.microsoft.com/beta/administrativeUnits/${auId}/members/$ref`, {
     method: "POST",
