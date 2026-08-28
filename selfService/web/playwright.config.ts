@@ -1,12 +1,10 @@
 /// <reference types="node" />
 
 import { defineConfig, devices } from "@playwright/test";
+import path from "path";
+import { fileURLToPath } from "url";
 
-const signedOutTests = [
-  /access-pass-render\.spec\.ts/,
-  /azure-help-link\.spec\.ts/,
-  /zeninstaller-link\.spec\.ts/,
-];
+const signedOutTests = [/access-pass-render\.spec\.ts/, /azure-help-link\.spec\.ts/, /zeninstaller-link\.spec\.ts/];
 
 const authenticatedTests = [
   /authenticated-page-load\.spec\.ts/,
@@ -16,9 +14,15 @@ const authenticatedTests = [
   /access-pass-creation\.spec\.ts/,
 ];
 
+import * as dotenv from "dotenv";
+
+const currentFilePath = fileURLToPath(import.meta.url);
+const currentDirectory = path.dirname(currentFilePath);
+dotenv.config({ path: path.resolve(currentDirectory, ".env") });
+
 export default defineConfig({
   testDir: "./pwtests",
-  outputDir:"./pwtests/test-results",
+  outputDir: "./pwtests/test-results",
   updateSnapshots: process.env.CI ? "none" : "missing",
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
@@ -29,13 +33,13 @@ export default defineConfig({
   expect: {
     timeout: 10_000,
 
-      toHaveScreenshot: {
-        animations: "disabled",
-        caret: "hide",
-        scale: "css",
-        maxDiffPixelRatio: 0.02,
+    toHaveScreenshot: {
+      animations: "disabled",
+      caret: "hide",
+      scale: "css",
+      maxDiffPixelRatio: 0.02,
 
-        pathTemplate: "{testDir}/{arg}{ext}"
+      pathTemplate: "{testDir}/{arg}{ext}",
     },
   },
 
@@ -43,7 +47,7 @@ export default defineConfig({
     baseURL: "http://localhost:5173",
     trace: "on-first-retry",
     screenshot: "only-on-failure",
-    testIdAttribute:"data-id",
+    testIdAttribute: "data-id",
   },
 
   projects: [
@@ -94,10 +98,6 @@ export default defineConfig({
       },
       dependencies: ["azure-passkey-setup"],
     },
-
-
-  
-    
   ],
 
   /**
@@ -113,4 +113,3 @@ export default defineConfig({
     timeout: 120_000,
   },
 });
-
