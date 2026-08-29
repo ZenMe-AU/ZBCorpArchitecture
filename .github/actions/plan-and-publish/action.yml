@@ -29,16 +29,7 @@ runs:
       env:
         DIR: ${{ inputs.dir }}
       run: |
-        set -o pipefail
-
-        # TODO: change initCorpEnvDeploy to accept dir name
-        STAGE_CODE=$(printf '%s' "$DIR" | grep -oE '^c[0-9]{2}')
-        if [ -z "$STAGE_CODE" ]; then
-          echo "::error::Cannot derive a cXX stage code from directory '$DIR'"
-          exit 1
-        fi
-
-        node initCorpEnvDeploy.js --stage="$STAGE_CODE" --planOnly 2>&1 | tee /tmp/plan_output.txt
+        node initCorpEnvDeploy.js --dir="$DIR" --planOnly 2>&1 | tee /tmp/plan_output.txt
 
     - name: Convert the plan to JSON
       if: steps.plan.outcome == 'success'
