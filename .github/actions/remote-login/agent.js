@@ -11,22 +11,17 @@
  * `az login --use-device-code` finishes — no Terraform stage.
  */
 
-import crypto from "crypto";
 import { execFileSync } from "child_process";
 import pty from "node-pty";
 import { WebSocket } from "ws";
-import { WebPubSubServiceClient } from "@azure/web-pubsub";
 import { DeviceCodeDetector } from "./device-code.js";
 
 const SESSION_ID = process.env.SESSION_ID;
-const ENDPOINT = process.env.WEBPUBSUB_ENDPOINT;
-const KEY = process.env.WEBPUBSUB_KEY;
-const HUB = process.env.HUB_NAME || "terminal";
+const CLIENT_URL = process.env.WEBPUBSUB_CLIENT_URL;
 const TENANT_ID = process.env.AZURE_TENANT_ID?.trim();
 const SUBSCRIPTION_ID = process.env.AZURE_SUBSCRIPTION_ID?.trim();
 const AWS_LOGIN = process.env.AWS_LOGIN?.trim() !== "false";
 const AWS_REGION = process.env.AWS_REGION?.trim() || "us-east-1";
-const SESSION_TTL = parseInt(process.env.SESSION_TTL || "1800", 10);
 const COLS = 120;
 const ROWS = 24;
 
@@ -34,8 +29,8 @@ if (!SESSION_ID) {
   console.error("FATAL: SESSION_ID env var required");
   process.exit(1);
 }
-if (!ENDPOINT || !KEY) {
-  console.error("FATAL: WEBPUBSUB_ENDPOINT and WEBPUBSUB_KEY env vars required");
+if (!CLIENT_URL) {
+  console.error("FATAL: WEBPUBSUB_CLIENT_URL env var required — mint-webpubsub-token.js runs before this");
   process.exit(1);
 }
 
@@ -54,7 +49,7 @@ async function getClientUrl() {
 
 async function main() {
   console.log(`Joining terminal session ${SESSION_ID}`);
-  const ws = new WebSocket(await getClientUrl(), "json.webpubsub.azure.v1");
+  const ws = new WebSocket(CLIENT_URL, "json.webpubsub.azure.v1");
   let child = null;
   let joined = false;
   let finished = false;
@@ -77,9 +72,12 @@ async function main() {
     if (finished) return;
     finished = true;
     if (child) child.kill();
-    if (ws.readyState === WebSocket.OPEN) ws.close();
+    send({ type: "sessionClosed", ok: loginExitCode === 0 });
     console.log(`Remote login ${loginExitCode === 0 ? "SUCCESS" : "FAILED"}`);
-    process.exit(loginExitCode === 0 ? 0 : 1);
+    setTimeout(() => {
+      if (ws.readyState === WebSocket.OPEN) ws.close();
+      process.exit(loginExitCode === 0 ? 0 : 1);
+    }, 500);
   }
 
   function selectSubscription() {
@@ -211,14 +209,21 @@ async function main() {
       return;
     }
 
-    if (frame.type !== "message" || frame.group !== SESSION_ID || !child) return;
+    if (frame.type !== "message" || frame.group !== SESSION_ID) return;
     let payload;
     try {
       payload = JSON.parse(frame.data);
     } catch {
-      child.write(String(frame.data));
+      if (child) child.write(String(frame.data));
       return;
     }
+
+    if (payload.type === "endSession") {
+      console.log("Browser ended the session");
+      return finish();
+    }
+
+    if (!child) return;
     if (payload.type === "input") child.write(payload.data);
     else if (payload.type === "resize") child.resize(payload.cols || COLS, payload.rows || ROWS);
   });

@@ -1,7 +1,6 @@
 name: Remote login terminal
 description: Attach a browser terminal to `az login --use-device-code` on this runner
 
-# The browser keeps the session's access token, so only the session id is passed in here.
 inputs:
   session_id:
     required: true
@@ -9,9 +8,12 @@ inputs:
   webpubsub_endpoint:
     required: true
     description: "Web PubSub host, e.g. zenme-azure-remote-login.webpubsub.azure.com"
-  webpubsub_key:
+  webpubsub_client_id:
     required: true
-    description: "Web PubSub access key"
+    description: "App registration holding Web PubSub Service Owner on that resource"
+  webpubsub_tenant_id:
+    required: true
+    description: "Tenant that owns the Web PubSub resource"
   hub_name:
     required: false
     default: "terminal"
@@ -23,7 +25,7 @@ inputs:
   tenant_id:
     required: false
     default: ""
-    description: "Tenant to sign in to; blank uses the account's home tenant"
+    description: "Tenant the user signs in to; blank uses their home tenant"
   subscription_id:
     required: false
     default: ""
@@ -40,25 +42,34 @@ inputs:
 runs:
   using: composite
   steps:
-    - uses: actions/setup-node@v4
+    - uses: pnpm/setup@v2
       with:
-        node-version: "22"
-
-    - name: Install the Azure CLI
-      shell: bash
-      run: |
-        if command -v az >/dev/null 2>&1; then
-          az version
-        else
-          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
-        fi
+        runtime: node@22
+        install: false
 
     - name: Install the agent's dependencies
       shell: bash
       working-directory: ${{ github.action_path }}
-      run: npm install --no-audit --no-fund
+      run: pnpm install
 
-    # The device login has to start from a clean slate, or `az login` reuses a cached account.
+    - name: Sign in to the tenant that owns the Web PubSub
+      uses: azure/login@v3
+      with:
+        client-id: ${{ inputs.webpubsub_client_id }}
+        tenant-id: ${{ inputs.webpubsub_tenant_id }}
+        allow-no-subscriptions: true
+
+    - name: Mint the Web PubSub client URL
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: node mint-webpubsub-token.js
+      env:
+        SESSION_ID: ${{ inputs.session_id }}
+        WEBPUBSUB_ENDPOINT: ${{ inputs.webpubsub_endpoint }}
+        WEBPUBSUB_TENANT_ID: ${{ inputs.webpubsub_tenant_id }}
+        HUB_NAME: ${{ inputs.hub_name }}
+        SESSION_TTL: ${{ inputs.session_ttl }}
+
     - name: Clear cached Azure credentials
       shell: bash
       run: |
@@ -75,10 +86,6 @@ runs:
       run: node agent.js
       env:
         SESSION_ID: ${{ inputs.session_id }}
-        WEBPUBSUB_ENDPOINT: ${{ inputs.webpubsub_endpoint }}
-        WEBPUBSUB_KEY: ${{ inputs.webpubsub_key }}
-        HUB_NAME: ${{ inputs.hub_name }}
-        SESSION_TTL: ${{ inputs.session_ttl }}
         AZURE_TENANT_ID: ${{ inputs.tenant_id }}
         AZURE_SUBSCRIPTION_ID: ${{ inputs.subscription_id }}
         AWS_LOGIN: ${{ inputs.aws_login }}
