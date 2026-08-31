@@ -38,6 +38,31 @@ inputs:
     required: false
     default: "us-east-1"
     description: "Region the AWS sign-in runs against"
+  dir:
+    required: true
+    description: "Stage directory the plan was produced for"
+  plan_run_id:
+    required: true
+    description: "The plan run whose tfplan to apply"
+  github_token:
+    required: true
+    description: "Token used to download the planned stage and record the deployment"
+  environment:
+    required: false
+    default: ""
+    description: "GitHub Environment the deployment is recorded against"
+  ref:
+    required: false
+    default: ""
+    description: "Branch the deployment is recorded against"
+  plan_file:
+    required: false
+    default: "tfplan"
+    description: "Plan filename inside the stage package"
+  terraform_version:
+    required: false
+    default: "1.6.6"
+    description: "Must stay compatible with the version that produced the plan"
 
 runs:
   using: composite
@@ -90,3 +115,97 @@ runs:
         AZURE_SUBSCRIPTION_ID: ${{ inputs.subscription_id }}
         AWS_LOGIN: ${{ inputs.aws_login }}
         AWS_REGION: ${{ inputs.aws_region }}
+
+    # ── Deploy ────────────────────────────────────────────────────────────────
+    - name: Confirm the Terraform session is the signed-in user
+      shell: bash
+      run: |
+        az account show -o json --query '{user:user.name,type:user.type,tenant:tenantId,sub:id}'
+        TYPE=$(az account show --query user.type -o tsv)
+        if [ "$TYPE" != "user" ]; then
+          echo "::error::The active az account is a '$TYPE', not a user — refusing to deploy."
+          exit 1
+        fi
+
+    - name: Download the planned stage
+      uses: actions/download-artifact@v7
+      with:
+        name: ${{ inputs.dir }}-pkg
+        path: stage
+        run-id: ${{ inputs.plan_run_id }}
+        github-token: ${{ inputs.github_token }}
+
+    - name: Install Terraform
+      uses: hashicorp/setup-terraform@v4
+      with:
+        terraform_version: ${{ inputs.terraform_version }}
+        terraform_wrapper: false
+
+    - name: Apply the reviewed plan as the signed-in user
+      id: apply
+      continue-on-error: true
+      shell: bash
+      working-directory: stage
+      env:
+        PLAN_FILE: ${{ inputs.plan_file }}
+        TF_IN_AUTOMATION: "true"
+        ARM_USE_CLI: "true"
+      run: |
+        # The artifact round-trip drops the exec bit off the provider binaries.
+        find .terraform/providers -name "terraform-provider-*" -type f -exec chmod +x {} \; 2>/dev/null || true
+        terraform init 2>&1 | tee /tmp/deploy_output.txt
+        terraform apply -auto-approve "$PLAN_FILE" 2>&1 | tee -a /tmp/deploy_output.txt
+
+    - name: Print the apply log
+      if: steps.apply.outcome == 'failure'
+      shell: bash
+      run: cat /tmp/deploy_output.txt
+
+    - name: Upload the apply log
+      id: log
+      uses: actions/upload-artifact@v7
+      with:
+        name: ${{ inputs.dir }}-deploy-log
+        path: /tmp/deploy_output.txt
+        if-no-files-found: ignore
+
+    - name: Build the deployment payload
+      id: payload
+      shell: bash
+      env:
+        DIR: ${{ inputs.dir }}
+        OUTCOME: ${{ steps.apply.outcome }}
+        LOG_ID: ${{ steps.log.outputs.artifact-id }}
+        LOG_URL: ${{ steps.log.outputs.artifact-url }}
+      run: |
+        STATUS=failed
+        [ "$OUTCOME" = "success" ] && STATUS=success
+        PAYLOAD=$(jq -nc \
+          --arg stage "$DIR" --arg status "$STATUS" \
+          --arg deployRunId "${{ github.run_id }}" --arg deployLogUrl "$LOG_URL" \
+          --argjson deployedAt "$(date +%s)" --argjson deployLogId "${LOG_ID:-null}" \
+          '{ stage: $stage, deployStatus: $status, deployRunId: $deployRunId,
+             deployedAt: $deployedAt, deployLogId: $deployLogId, deployLogUrl: $deployLogUrl }')
+        echo "payload=$PAYLOAD" >> $GITHUB_OUTPUT
+        echo "state=$([ "$STATUS" = success ] && echo success || echo failure)" >> $GITHUB_OUTPUT
+        echo "$PAYLOAD"
+
+    # task=deploy:<dir> is exactly what the card queries the Deployments API for.
+    - uses: ./.github/actions/record-deployment
+      with:
+        github_token: ${{ inputs.github_token }}
+        environment: ${{ inputs.environment }}
+        ref: ${{ inputs.ref }}
+        kind: deploy
+        dir: ${{ inputs.dir }}
+        state: ${{ steps.payload.outputs.state }}
+        payload: ${{ steps.payload.outputs.payload }}
+        log_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+    # Last, so the log and the deployment record are both published before the job goes red.
+    - name: Stop if the apply failed
+      if: steps.apply.outcome == 'failure'
+      shell: bash
+      run: |
+        echo "::error::terraform apply failed — see the ${{ inputs.dir }}-deploy-log artifact."
+        exit 1

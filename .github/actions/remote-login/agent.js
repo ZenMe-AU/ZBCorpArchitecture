@@ -22,6 +22,7 @@ const TENANT_ID = process.env.AZURE_TENANT_ID?.trim();
 const SUBSCRIPTION_ID = process.env.AZURE_SUBSCRIPTION_ID?.trim();
 const AWS_LOGIN = process.env.AWS_LOGIN?.trim() !== "false";
 const AWS_REGION = process.env.AWS_REGION?.trim() || "us-east-1";
+const SESSION_TTL = parseInt(process.env.SESSION_TTL || "1800", 10);
 const COLS = 120;
 const ROWS = 24;
 
@@ -71,12 +72,14 @@ async function main() {
   function finish() {
     if (finished) return;
     finished = true;
+    clearTimeout(deadline);
+    const code = loginExitCode === 0 ? 0 : 1;
     if (child) child.kill();
-    send({ type: "sessionClosed", ok: loginExitCode === 0 });
-    console.log(`Remote login ${loginExitCode === 0 ? "SUCCESS" : "FAILED"}`);
+    send({ type: "sessionClosed", ok: code === 0 });
+    console.log(`Remote login ${code === 0 ? "SUCCESS" : "FAILED"}`);
     setTimeout(() => {
       if (ws.readyState === WebSocket.OPEN) ws.close();
-      process.exit(loginExitCode === 0 ? 0 : 1);
+      process.exit(code);
     }, 500);
   }
 
@@ -119,6 +122,7 @@ async function main() {
     });
 
     child.onExit(({ exitCode }) => {
+      if (finished) return;
       if (exitCode !== 0) {
         loginExitCode = exitCode;
         send({ type: "loginFailed", cloud, exitCode });
@@ -183,6 +187,14 @@ async function main() {
     });
   }
 
+  const deadline = setTimeout(() => {
+    console.error(`::error::No sign-in completed within ${SESSION_TTL}s — giving up.`);
+    send({ type: "terminal", data: `\r\nSession timed out after ${SESSION_TTL}s.\r\n` });
+    send({ type: "stage", stage: "error" });
+    loginExitCode = 1;
+    setTimeout(finish, 500);
+  }, SESSION_TTL * 1000);
+
   ws.on("message", (raw) => {
     let frame;
     try {
@@ -229,9 +241,7 @@ async function main() {
   });
 
   ws.on("error", (err) => console.error("WebSocket error:", err.message));
-  ws.on("close", () => {
-    if (child) child.kill();
-  });
+  ws.on("close", finish);
 
   process.on("SIGTERM", finish);
   process.on("SIGINT", finish);
