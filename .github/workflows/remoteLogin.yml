@@ -13,11 +13,6 @@ on:
       github_env_name:
         required: false
         description: "GitHub Environment name"
-      aws_login:
-        required: false
-        default: true
-        type: boolean
-        description: "Also sign in to AWS after Azure"
       plan_run_id:
         required: true
         description: "The plan run whose tfplan to apply"
@@ -49,7 +44,6 @@ jobs:
           session_ttl: "1800"
           tenant_id: ${{ vars.AZURE_TENANT_ID }}
           subscription_id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-          aws_login: ${{ inputs.aws_login }}
           aws_region: ${{ vars.AWS_REGION || 'us-east-1' }}
           dir: ${{ inputs.dir }}
           plan_run_id: ${{ inputs.plan_run_id }}

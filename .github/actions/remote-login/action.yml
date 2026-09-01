@@ -30,10 +30,6 @@ inputs:
     required: false
     default: ""
     description: "Subscription to select after login; blank leaves whichever one az defaulted to"
-  aws_login:
-    required: false
-    default: "true"
-    description: 'Run `aws login --remote` after the Azure sign-in; "false" stops at Azure'
   aws_region:
     required: false
     default: "us-east-1"
@@ -67,17 +63,55 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: Read the clouds this stage needs
+      id: clouds
+      uses: ./.github/actions/read-terraform-providers
+      with:
+        stage_dir: corpSetup/${{ inputs.dir }}
+
+    - name: Check the plan is still the current one
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github_token }}
+        DIR: ${{ inputs.dir }}
+        ENVIRONMENT: ${{ inputs.environment }}
+        PLAN_RUN_ID: ${{ inputs.plan_run_id }}
+      run: |
+        # Fetch the latest deployment for this environment and stage
+        LATEST=$(gh api \
+          "/repos/${{ github.repository }}/deployments?environment=$ENVIRONMENT&task=plan:$DIR&per_page=1" \
+          --jq '.[0].payload | if type == "string" then fromjson else . end | .runId // empty')
+
+        fail() {
+          echo "::error::$1"
+          { echo "$1"; echo; echo "$2"; } > /tmp/deploy_output.txt
+          exit 1
+        }
+
+        if [ -z "$LATEST" ]; then
+          fail "No plan report for $DIR in $ENVIRONMENT — cannot confirm the plan is current." \
+               "Run the plan for this stage first, then deploy."
+        fi
+        if [ "$LATEST" != "$PLAN_RUN_ID" ]; then
+          fail "Refusing to apply a superseded plan: asked for run $PLAN_RUN_ID, current is $LATEST." \
+               "$DIR was re-planned after the card loaded. Refresh the stage and deploy again so the apply matches the changes that were reviewed."
+        fi
+
+        echo "Plan run $PLAN_RUN_ID is current for $DIR."
+
     - uses: pnpm/setup@v2
       with:
         runtime: node@22
         install: false
 
     - name: Install the agent's dependencies
+      id: deps
       shell: bash
       working-directory: ${{ github.action_path }}
       run: pnpm install
 
     - name: Sign in to the tenant that owns the Web PubSub
+      id: az_login
       uses: azure/login@v3
       with:
         client-id: ${{ inputs.webpubsub_client_id }}
@@ -85,6 +119,7 @@ runs:
         allow-no-subscriptions: true
 
     - name: Mint the Web PubSub client URL
+      id: mint
       shell: bash
       working-directory: ${{ github.action_path }}
       run: node mint-webpubsub-token.js
@@ -106,6 +141,7 @@ runs:
       run: az config set core.login_experience_v2=off
 
     - name: Attach the terminal and run the device login
+      id: login
       shell: bash
       working-directory: ${{ github.action_path }}
       run: node agent.js
@@ -113,21 +149,13 @@ runs:
         SESSION_ID: ${{ inputs.session_id }}
         AZURE_TENANT_ID: ${{ inputs.tenant_id }}
         AZURE_SUBSCRIPTION_ID: ${{ inputs.subscription_id }}
-        AWS_LOGIN: ${{ inputs.aws_login }}
+        AWS_LOGIN: ${{ steps.clouds.outputs.needs_aws }}
         AWS_REGION: ${{ inputs.aws_region }}
 
+    # TODO: confirm !cancelled() behaves as intended on a real cancel
     # ── Deploy ────────────────────────────────────────────────────────────────
-    - name: Confirm the Terraform session is the signed-in user
-      shell: bash
-      run: |
-        az account show -o json --query '{user:user.name,type:user.type,tenant:tenantId,sub:id}'
-        TYPE=$(az account show --query user.type -o tsv)
-        if [ "$TYPE" != "user" ]; then
-          echo "::error::The active az account is a '$TYPE', not a user — refusing to deploy."
-          exit 1
-        fi
-
     - name: Download the planned stage
+      id: download
       uses: actions/download-artifact@v7
       with:
         name: ${{ inputs.dir }}-pkg
@@ -143,7 +171,6 @@ runs:
 
     - name: Apply the reviewed plan as the signed-in user
       id: apply
-      continue-on-error: true
       shell: bash
       working-directory: stage
       env:
@@ -156,12 +183,43 @@ runs:
         terraform init 2>&1 | tee /tmp/deploy_output.txt
         terraform apply -auto-approve "$PLAN_FILE" 2>&1 | tee -a /tmp/deploy_output.txt
 
-    - name: Print the apply log
-      if: steps.apply.outcome == 'failure'
+    - name: Note the cancellation
+      id: cancel
+      if: cancelled()
       shell: bash
-      run: cat /tmp/deploy_output.txt
+      run: echo "cancelled=true" >> $GITHUB_OUTPUT
+
+    - name: Make sure the log explains itself
+      if: ${{ !cancelled() }}
+      shell: bash
+      env:
+        DEPS: ${{ steps.deps.outcome }}
+        AZ_LOGIN: ${{ steps.az_login.outcome }}
+        MINT: ${{ steps.mint.outcome }}
+        LOGIN: ${{ steps.login.outcome }}
+        DOWNLOAD: ${{ steps.download.outcome }}
+        APPLY: ${{ steps.apply.outcome }}
+        RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      run: |
+        [ -s /tmp/deploy_output.txt ] && exit 0
+
+        for pair in "DEPS:Installing the agent's dependencies" \
+                    "AZ_LOGIN:Signing in to mint the relay token" \
+                    "MINT:Minting the Web PubSub client URL" \
+                    "LOGIN:The interactive sign-in" \
+                    "DOWNLOAD:Downloading the planned stage" \
+                    "APPLY:Applying the plan"; do
+          var=${pair%%:*}
+          if [ "${!var}" = "failure" ]; then
+            { echo "${pair#*:} failed."; echo; echo "Full output: $RUN_URL"; } > /tmp/deploy_output.txt
+            exit 0
+          fi
+        done
+
+        { echo "The deploy did not complete."; echo; echo "Full output: $RUN_URL"; } > /tmp/deploy_output.txt
 
     - name: Upload the apply log
+      if: ${{ !cancelled() }}
       id: log
       uses: actions/upload-artifact@v7
       with:
@@ -170,28 +228,41 @@ runs:
         if-no-files-found: ignore
 
     - name: Build the deployment payload
+      if: always()
       id: payload
       shell: bash
       env:
         DIR: ${{ inputs.dir }}
         OUTCOME: ${{ steps.apply.outcome }}
+        CANCELLED: ${{ steps.cancel.outputs.cancelled }}
+        PLAN_RUN_ID: ${{ inputs.plan_run_id }}
         LOG_ID: ${{ steps.log.outputs.artifact-id }}
         LOG_URL: ${{ steps.log.outputs.artifact-url }}
       run: |
-        STATUS=failed
-        [ "$OUTCOME" = "success" ] && STATUS=success
+        if [ "$CANCELLED" = "true" ]; then
+          STATUS=cancelled
+        elif [ "$OUTCOME" = "success" ]; then
+          STATUS=success
+        else
+          STATUS=failed
+        fi
         PAYLOAD=$(jq -nc \
           --arg stage "$DIR" --arg status "$STATUS" \
           --arg deployRunId "${{ github.run_id }}" --arg deployLogUrl "$LOG_URL" \
+          --arg deployPlanRunId "$PLAN_RUN_ID" \
           --argjson deployedAt "$(date +%s)" --argjson deployLogId "${LOG_ID:-null}" \
           '{ stage: $stage, deployStatus: $status, deployRunId: $deployRunId,
-             deployedAt: $deployedAt, deployLogId: $deployLogId, deployLogUrl: $deployLogUrl }')
+             deployPlanRunId: $deployPlanRunId, deployedAt: $deployedAt,
+             deployLogId: $deployLogId, deployLogUrl: $deployLogUrl }')
         echo "payload=$PAYLOAD" >> $GITHUB_OUTPUT
         echo "state=$([ "$STATUS" = success ] && echo success || echo failure)" >> $GITHUB_OUTPUT
+        echo "$STATUS"
         echo "$PAYLOAD"
 
     # task=deploy:<dir> is exactly what the card queries the Deployments API for.
-    - uses: ./.github/actions/record-deployment
+    - name: Record the deployment
+      if: always()
+      uses: ./.github/actions/record-deployment
       with:
         github_token: ${{ inputs.github_token }}
         environment: ${{ inputs.environment }}
@@ -201,11 +272,3 @@ runs:
         state: ${{ steps.payload.outputs.state }}
         payload: ${{ steps.payload.outputs.payload }}
         log_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
-    # Last, so the log and the deployment record are both published before the job goes red.
-    - name: Stop if the apply failed
-      if: steps.apply.outcome == 'failure'
-      shell: bash
-      run: |
-        echo "::error::terraform apply failed — see the ${{ inputs.dir }}-deploy-log artifact."
-        exit 1
