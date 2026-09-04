@@ -33,43 +33,13 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-# Deploy app registration
-Write-Output "Deploying app registration..."
+# Deploy Azure AD resources (app registration, groups, administrative units, permissions) via Terraform
+Write-Output "`nDeploying Azure AD resources via Terraform..."
 Set-Location $env:MODULE_FOLDER\deploy\code
-node ./appRegistration.mjs
+node ./deployTerraform.js
 if ($LASTEXITCODE -ne 0) {
-    Write-Error "App registration deployment failed"
+    Write-Error "Terraform deployment failed"
     exit 1
 }
 
-Write-Output "App registration deployment completed successfully!"
-
-# Bootstrap groups
-Write-Output "`nBootstrapping groups..."
-node ./bootstrapGroups.mjs
-if ($LASTEXITCODE -ne 0) {
-    Write-Error "Group bootstrap failed"
-    exit 1
-}
-
-Write-Output "Groups bootstrapped successfully!"
-
-# Bootstrap administrative units
-Write-Output "`nBootstrapping administrative units..."
-node ./bootstrapAdministrativeUnits.mjs
-if ($LASTEXITCODE -ne 0) {
-    Write-Error "Administrative unit bootstrap failed"
-    exit 1
-}
-
-Write-Output "Administrative units bootstrapped successfully!"
-
-# Assign API permissions
-Write-Output "`nAssigning API permissions..."
-node ./assignPermissions.mjs
-if ($LASTEXITCODE -ne 0) {
-    Write-Error "API permissions assignment failed"
-    exit 1
-}
-
-Write-Output "API permissions assigned successfully!"
+Write-Output "Terraform deployment completed successfully!"
