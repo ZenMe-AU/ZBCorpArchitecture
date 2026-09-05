@@ -122,22 +122,32 @@ function main() {
   const autoApprove = process.argv.includes("--auto-approve");
   const args = minimist(process.argv.slice(2));
   const stage = args.stage;
+  const dir = args.dir;
   const stageRegex = /^c\d{2}$/;
   const planOnly = process.argv.includes("--planOnly");
+  const stageDirs = () => readdirSync(__dirname, { withFileTypes: true }).filter((e) => e.isDirectory());
 
   try {
-    // Validate stage argument
-    if (!stage) {
-      throw new Error("Stage is required.");
-    }
-    // Validate stage format
-    if (!stageRegex.test(stage)) {
-      throw new Error("Invalid stage format. Expected format: cXX");
-    }
-    // Find the working directory that matches the stage
-    const workingDirName = readdirSync(__dirname, { withFileTypes: true }).find((dir) => dir.isDirectory() && dir.name.startsWith(stage))?.name;
-    if (!workingDirName) {
-      throw new Error(`No directory found for stage: ${stage}`);
+    let workingDirName;
+    if (dir) {
+      // --dir names the directory outright. Matched against the real listing rather than joined
+      // onto a path, so it cannot be pointed outside corpSetup.
+      workingDirName = stageDirs().find((e) => e.name === dir)?.name;
+      if (!workingDirName) {
+        throw new Error(`No such stage directory: ${dir}`);
+      }
+    } else {
+      // --stage is the older form: a cXX code the directory is found by prefix.
+      if (!stage) {
+        throw new Error("Either --dir or --stage is required.");
+      }
+      if (!stageRegex.test(stage)) {
+        throw new Error("Invalid stage format. Expected format: cXX");
+      }
+      workingDirName = stageDirs().find((e) => e.name.startsWith(stage))?.name;
+      if (!workingDirName) {
+        throw new Error(`No directory found for stage: ${stage}`);
+      }
     }
     console.log("workingDir:", workingDirName);
     const corpEnvFile = resolve(__dirname, "corp.env");

@@ -1,0 +1,100 @@
+name: Record deployment
+description: Record one stage's plan or deploy result as a GitHub Deployment
+
+inputs:
+  github_token:
+    description: "Token with deployments: write"
+    required: true
+  environment:
+    description: "GitHub Environment the result belongs to"
+    required: true
+  ref:
+    description: "Branch the run was for"
+    required: true
+  kind:
+    description: '"plan" or "deploy" — becomes the task prefix the card filters on'
+    required: true
+  dir:
+    description: "Stage directory — the rest of the task"
+    required: true
+  state:
+    description: '"success" or "failure"'
+    required: true
+  payload:
+    description: "JSON object describing the result; read back verbatim by the card"
+    required: true
+  log_url:
+    description: "Where to look at what happened; defaults to this run"
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    # Fatal, not best-effort: this Deployment is the only record of the run. A green job whose
+    # result never arrived leaves the card polling until it gives up.
+    - name: Record the result as a Deployment
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github_token }}
+        ENVIRONMENT: ${{ inputs.environment }}
+        REF: ${{ inputs.ref }}
+        KIND: ${{ inputs.kind }}
+        DIR: ${{ inputs.dir }}
+        STATE: ${{ inputs.state }}
+        PAYLOAD: ${{ inputs.payload }}
+        LOG_URL: ${{ inputs.log_url || format('{0}/{1}/actions/runs/{2}', github.server_url, github.repository, github.run_id) }}
+        API: ${{ github.api_url }}/repos/${{ github.repository }}
+      run: |
+        set -o pipefail
+
+        if [ -z "$ENVIRONMENT" ]; then
+          echo "::error::No environment given — the result cannot be recorded"
+          exit 1
+        fi
+        # jq empty accepts empty input, so emptiness is checked separately — an upstream step that
+        # never produced its output hands us "" and --argjson would then fail mid-script.
+        if [ -z "$PAYLOAD" ] || ! echo "$PAYLOAD" | jq -e 'type == "object"' >/dev/null 2>&1; then
+          echo "::error::payload is not a JSON object — the result cannot be recorded"
+          echo "payload was: '$PAYLOAD'"
+          exit 1
+        fi
+
+        post() {
+          curl -sS -w '\n%{http_code}' -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            -d "$2" "$1"
+        }
+
+        # auto_merge defaults to true and would try to merge the base branch in; required_contexts
+        # defaults to every status check and 409s while any is pending. Both must be overridden.
+        BODY=$(jq -n --arg ref "$REF" --arg env "$ENVIRONMENT" \
+          --arg task "${KIND}:${DIR}" --argjson payload "$PAYLOAD" \
+          --arg desc "${KIND} ${DIR}: ${STATE}" \
+          '{ ref: $ref, environment: $env, task: $task, payload: $payload,
+             description: $desc, auto_merge: false, required_contexts: [],
+             transient_environment: false, production_environment: false }')
+
+        RESPONSE=$(post "$API/deployments" "$BODY") || true
+        CODE=$(echo "$RESPONSE" | tail -n1)
+        DEPLOYMENT=$(echo "$RESPONSE" | sed '$d')
+
+        if [ "$CODE" != "201" ]; then
+          echo "::error::Could not create the deployment (HTTP $CODE)"
+          echo "$DEPLOYMENT"
+          exit 1
+        fi
+
+        ID=$(echo "$DEPLOYMENT" | jq -r '.id')
+        echo "Deployment $ID recorded for task ${KIND}:${DIR}"
+
+        # The state is what GitHub's own environment view reads; the card reads the payload above.
+        STATUS_BODY=$(jq -n --arg state "$STATE" --arg log "$LOG_URL" --arg desc "${KIND} ${DIR}" \
+          '{ state: $state, description: $desc } + (if $log == "" then {} else { log_url: $log } end)')
+        STATUS=$(post "$API/deployments/$ID/statuses" "$STATUS_BODY") || true
+        SCODE=$(echo "$STATUS" | tail -n1)
+        # The payload already carries the outcome the card reads, so a missing status line is
+        # a warning rather than a lost result.
+        [ "$SCODE" = "201" ] || { echo "::warning::Could not set the deployment status (HTTP $SCODE)"; echo "$STATUS" | sed '$d'; }

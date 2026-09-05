@@ -1,0 +1,46 @@
+name: Read Terraform providers
+description: Read the providers a stage's Terraform declares, and name which clouds it must sign in to
+
+# Replaces a hand-kept needs_azure/needs_aws flag per stage. The Terraform is the thing that
+# actually decides, so there is no second list that can drift away from it.
+inputs:
+  stage_dir:
+    description: "The stage directory whose .tf files declare the providers"
+    required: true
+
+outputs:
+  needs_azure:
+    description: "Whether the stage declares an Azure provider"
+    value: ${{ steps.detect.outputs.needs_azure }}
+  needs_aws:
+    description: "Whether the stage declares the AWS provider"
+    value: ${{ steps.detect.outputs.needs_aws }}
+
+runs:
+  using: composite
+  steps:
+    - name: Read the declared providers
+      id: detect
+      shell: bash
+      env:
+        STAGE_PATH: ${{ inputs.stage_dir }}
+      run: |
+        if [ ! -d "$STAGE_PATH" ]; then
+          echo "::error::$STAGE_PATH does not exist"
+          exit 1
+        fi
+
+        PROVIDERS=$(grep -rhoE 'source *= *"hashicorp/[a-z]+"' "$STAGE_PATH" --include='*.tf' \
+          | sed 's|.*hashicorp/||; s|"||' | sort -u || true)
+        if [ -z "$PROVIDERS" ]; then
+          echo "::error::No hashicorp provider is declared under $STAGE_PATH — cannot tell which clouds to sign in to"
+          exit 1
+        fi
+
+        grep -qE '^(azurerm|azuread)$' <<< "$PROVIDERS" && AZ=true || AZ=false
+        grep -qx 'aws' <<< "$PROVIDERS" && AWS=true || AWS=false
+
+        echo "Providers declared: $(echo $PROVIDERS | tr '\n' ' ')"
+        echo "needs_azure=$AZ  needs_aws=$AWS"
+        echo "needs_azure=$AZ" >> $GITHUB_OUTPUT
+        echo "needs_aws=$AWS" >> $GITHUB_OUTPUT

@@ -1,0 +1,101 @@
+name: Plan and publish
+description: Run one stage's Terraform plan and publish its status, log, and plan artifacts
+
+inputs:
+  setup_dir:
+    description: "Directory holding the stage directories and initCorpEnvDeploy.js"
+    required: true
+  dir:
+    description: "Stage directory, relative to setup_dir"
+    required: true
+  stage_status_file:
+    description: "Status filename to write inside the stage directory"
+    required: true
+  plan_file:
+    description: "Binary plan Terraform writes — the deploy path applies this same name"
+    required: true
+  json_plan_file:
+    description: "Readable plan the card fetches"
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Plan the stage
+      id: plan
+      continue-on-error: true
+      shell: bash
+      working-directory: ${{ inputs.setup_dir }}
+      env:
+        DIR: ${{ inputs.dir }}
+      run: |
+        node initCorpEnvDeploy.js --dir="$DIR" --planOnly 2>&1 | tee /tmp/plan_output.txt
+
+    - name: Convert the plan to JSON
+      if: steps.plan.outcome == 'success'
+      shell: bash
+      working-directory: ${{ inputs.setup_dir }}/${{ inputs.dir }}
+      env:
+        PLAN_FILE: ${{ inputs.plan_file }}
+        JSON_PLAN_FILE: ${{ inputs.json_plan_file }}
+      run: |
+        if [ -f "$PLAN_FILE" ]; then
+          terraform show -json "$PLAN_FILE" > "$JSON_PLAN_FILE"
+        fi
+
+    # Built with jq rather than a heredoc so it matches, field for field, the entry
+    # report-plan-result synthesises when this artifact never arrives.
+    - name: Write status
+      if: always()
+      shell: bash
+      working-directory: ${{ inputs.setup_dir }}/${{ inputs.dir }}
+      env:
+        DIR: ${{ inputs.dir }}
+        STATUS_FILE: ${{ inputs.stage_status_file }}
+        OUTCOME: ${{ steps.plan.outcome }}
+      run: |
+        STATUS="failed"
+        if [ "$OUTCOME" = "success" ]; then
+          STATUS="success"
+        fi
+
+        jq -n --arg runId "${{ github.run_id }}" --arg stage "$DIR" --arg status "$STATUS" \
+          '{ runId: $runId, stage: $stage, status: $status, timestamp: (now | floor) }' > "$STATUS_FILE"
+        cat "$STATUS_FILE"
+
+    # "failed" on its own tells the card nothing. This is the only record of why, so it goes up
+    # whatever happened — the same arrangement the deploy path already has.
+    - name: Upload the plan log
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        if-no-files-found: ignore
+        name: ${{ inputs.dir }}-plan-log
+        path: /tmp/plan_output.txt
+
+    - name: Upload status
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        if-no-files-found: ignore
+        name: ${{ inputs.dir }}-status
+        path: ${{ inputs.setup_dir }}/${{ inputs.dir }}/${{ inputs.stage_status_file }}
+
+    - name: Upload the readable plan
+      if: steps.plan.outcome == 'success'
+      uses: actions/upload-artifact@v7
+      with:
+        if-no-files-found: ignore
+        name: ${{ inputs.dir }}-planJson
+        path: ${{ inputs.setup_dir }}/${{ inputs.dir }}/${{ inputs.json_plan_file }}
+
+    # The whole stage directory, including .terraform and the binary plan — this is what the
+    # deploy path downloads and applies.
+    - name: Upload the planned stage
+      if: steps.plan.outcome == 'success'
+      uses: actions/upload-artifact@v7
+      with:
+        if-no-files-found: ignore
+        include-hidden-files: true
+        name: ${{ inputs.dir }}-pkg
+        path: ${{ inputs.setup_dir }}/${{ inputs.dir }}/

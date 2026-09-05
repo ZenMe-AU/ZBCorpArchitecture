@@ -1,0 +1,143 @@
+name: Cloud login
+description: Sign in to the clouds a stage needs and hand those credentials to Terraform
+
+# Installing Terraform lives with the caller: this action is about credentials, and a name
+# covering both would describe neither.
+
+# Shared by the plan and deploy paths. They sign in as different identities — plan uses
+# AZURE_PLAN_CLIENT_ID, deploy uses AZURE_CLIENT_ID — so the caller passes the one it wants.
+# vars and secrets are not readable inside a composite action.
+inputs:
+  needs_azure:
+    required: false
+    default: "false"
+    description: "Whether the caller actually needs Azure — the stage declares this, it is not guessed from whether credentials happen to be set"
+  needs_aws:
+    required: false
+    default: "false"
+    description: "Whether the caller actually needs AWS"
+
+  azure_client_id:
+    required: false
+    default: ""
+    description: "Client id to sign in with; blank skips the Azure login"
+  azure_tenant_id:
+    required: false
+    default: ""
+    description: "Azure tenant id"
+  azure_subscription_id:
+    required: false
+    default: ""
+    description: "Azure subscription id"
+  aws_role_arn:
+    required: false
+    default: ""
+    description: "Role to assume; blank skips the AWS login"
+  aws_region:
+    required: false
+    default: "us-east-1"
+    description: "Region for the AWS credentials"
+
+outputs:
+  azure_signed_in:
+    description: "Whether the Azure login succeeded"
+    value: ${{ steps.set_outputs.outputs.azure_signed_in }}
+  aws_signed_in:
+    description: "Whether the AWS login succeeded"
+    value: ${{ steps.set_outputs.outputs.aws_signed_in }}
+
+runs:
+  using: composite
+  steps:
+    # check parameters before attempting the logins
+    - name: Check the credentials each needed cloud requires
+      id: creds
+      shell: bash
+      env:
+        NEEDS_AZURE: ${{ inputs.needs_azure }}
+        NEEDS_AWS: ${{ inputs.needs_aws }}
+        AZURE_CLIENT_ID: ${{ inputs.azure_client_id }}
+        AZURE_TENANT_ID: ${{ inputs.azure_tenant_id }}
+        AZURE_SUBSCRIPTION_ID: ${{ inputs.azure_subscription_id }}
+        AWS_ROLE_ARN: ${{ inputs.aws_role_arn }}
+      run: |
+        azure_ready=true
+        aws_ready=true
+
+        if [ "$NEEDS_AZURE" = "true" ]; then
+          missing=""
+          # The plan and deploy paths pass different variables here, so name the role not the var.
+          if [ -z "$AZURE_CLIENT_ID" ]; then missing="$missing the-Azure-client-id"; fi
+          if [ -z "$AZURE_TENANT_ID" ]; then missing="$missing AZURE_TENANT_ID"; fi
+          if [ -z "$AZURE_SUBSCRIPTION_ID" ]; then missing="$missing AZURE_SUBSCRIPTION_ID"; fi
+          if [ -n "$missing" ]; then
+            echo "::error::Azure is needed but these are not set:$missing"
+            azure_ready=false
+          fi
+        fi
+
+        if [ "$NEEDS_AWS" = "true" ] && [ -z "$AWS_ROLE_ARN" ]; then
+          echo "::error::AWS is needed but AWS_ROLE_ARN is not set"
+          aws_ready=false
+        fi
+
+        echo "azure_ready=$azure_ready" >> $GITHUB_OUTPUT
+        echo "aws_ready=$aws_ready" >> $GITHUB_OUTPUT
+
+    - name: Azure Login
+      id: az_login
+      if: inputs.needs_azure == 'true' && steps.creds.outputs.azure_ready == 'true'
+      continue-on-error: true
+      uses: azure/login@v3
+      with:
+        client-id: ${{ inputs.azure_client_id }}
+        tenant-id: ${{ inputs.azure_tenant_id }}
+        subscription-id: ${{ inputs.azure_subscription_id }}
+
+    - name: AWS Login
+      id: aws_login
+      if: inputs.needs_aws == 'true' && steps.creds.outputs.aws_ready == 'true'
+      continue-on-error: true
+      uses: aws-actions/configure-aws-credentials@v6
+      with:
+        role-to-assume: ${{ inputs.aws_role_arn }}
+        aws-region: ${{ inputs.aws_region }}
+
+    # Recorded before the gate below, so the outcome is captured even on the failing path.
+    - name: Record which logins succeeded
+      id: set_outputs
+      shell: bash
+      run: |
+        echo "azure_signed_in=${{ steps.az_login.outcome == 'success' }}" >> $GITHUB_OUTPUT
+        echo "aws_signed_in=${{ steps.aws_login.outcome == 'success' }}" >> $GITHUB_OUTPUT
+
+    - name: Stop unless every needed cloud is signed in
+      shell: bash
+      env:
+        NEEDS_AZURE: ${{ inputs.needs_azure }}
+        NEEDS_AWS: ${{ inputs.needs_aws }}
+        AZURE_OUTCOME: ${{ steps.az_login.outcome }}
+        AWS_OUTCOME: ${{ steps.aws_login.outcome }}
+      run: |
+        failed=""
+        if [ "$NEEDS_AZURE" = "true" ] && [ "$AZURE_OUTCOME" != "success" ]; then
+          failed="$failed Azure"
+        fi
+        if [ "$NEEDS_AWS" = "true" ] && [ "$AWS_OUTCOME" != "success" ]; then
+          failed="$failed AWS"
+        fi
+        if [ -n "$failed" ]; then
+          echo "::error::Not signed in to:$failed — the error above says why."
+          exit 1
+        fi
+        echo "Signed in to everything this stage needs."
+
+    # Points the azurerm provider at the OIDC session the login just established.
+    - name: Hand the Azure session to Terraform
+      if: steps.az_login.outcome == 'success'
+      shell: bash
+      run: |
+        echo "ARM_CLIENT_ID=${{ inputs.azure_client_id }}" >> $GITHUB_ENV
+        echo "ARM_TENANT_ID=${{ inputs.azure_tenant_id }}" >> $GITHUB_ENV
+        echo "ARM_SUBSCRIPTION_ID=${{ inputs.azure_subscription_id }}" >> $GITHUB_ENV
+        echo "ARM_USE_OIDC=true" >> $GITHUB_ENV

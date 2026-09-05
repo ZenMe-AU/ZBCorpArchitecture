@@ -1,0 +1,156 @@
+name: Report plan result
+description: Gather one stage's plan result from this run's artifacts and report the outcome
+
+inputs:
+  dir:
+    description: "Stage directory — also the stage's name in the report"
+    required: true
+  github_token:
+    description: "Token for reading this run's artifact list and publishing the result"
+    required: true
+  environment:
+    description: "GitHub Environment the result belongs to"
+    required: true
+  ref:
+    description: "Branch the run was for"
+    required: true
+  azure_signed_in:
+    required: false
+    default: "false"
+    description: "Whether the Azure login succeeded"
+  aws_signed_in:
+    required: false
+    default: "false"
+    description: "Whether the AWS login succeeded"
+  env_artifact_name:
+    required: true
+    description: "Artifact holding the merged corp.env"
+  env_path:
+    required: true
+    description: "Where corp.env lives — its basename is also the filename inside the artifact"
+  stage_status_file:
+    required: true
+    description: "Status filename the stage wrote inside its artifact"
+
+runs:
+  using: composite
+  steps:
+    - name: Download all artifacts
+      uses: actions/download-artifact@v7
+      with:
+        path: artifacts
+
+    - name: Fetch this run's artifact list
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github_token }}
+      run: |
+        set +e
+        RESPONSE=$(curl -s -w "\n%{http_code}" \
+          -H "Authorization: Bearer $GH_TOKEN" \
+          -H "Accept: application/vnd.github+json" \
+          https://api.github.com/repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts)
+
+        echo "$RESPONSE" | sed '$d' > /tmp/artifactList.json
+        echo "HTTP status: $(echo "$RESPONSE" | tail -n1)"
+
+        # Any bad response degrades to "no artifacts" rather than failing the run: the stage's own
+        # status still gets reported, just without the plan and log links.
+        if ! jq empty /tmp/artifactList.json 2>/dev/null || jq -e 'has("message")' /tmp/artifactList.json > /dev/null; then
+          echo "Unusable artifact list:"
+          cat /tmp/artifactList.json
+          echo '{"artifacts":[]}' > /tmp/artifactList.json
+        fi
+
+    - name: Build the report
+      id: build
+      shell: bash
+      env:
+        DIR: ${{ inputs.dir }}
+        AZURE_SIGNED_IN: ${{ inputs.azure_signed_in }}
+        AWS_SIGNED_IN: ${{ inputs.aws_signed_in }}
+        ENV_ARTIFACT_NAME: ${{ inputs.env_artifact_name }}
+        ENV_PATH: ${{ inputs.env_path }}
+        STAGE_STATUS_FILE: ${{ inputs.stage_status_file }}
+      run: |
+        ARTIFACTS=$(cat /tmp/artifactList.json)
+
+        # This run planned exactly one stage, so read that one status file directly instead of
+        # scanning for whatever happens to be lying around.
+        STATUS_FILE="artifacts/${DIR}-status/${STAGE_STATUS_FILE}"
+
+        # The plan job can die before it writes one — a failed login, for instance. Record the
+        # failure ourselves: the card reads this report and would otherwise just time out.
+        if [ ! -f "$STATUS_FILE" ]; then
+          echo "::warning::$STATUS_FILE is missing — reporting the stage as failed"
+          mkdir -p "$(dirname "$STATUS_FILE")"
+          jq -n --arg runId "${{ github.run_id }}" --arg stage "$DIR" \
+            '{ runId: $runId, stage: $stage, status: "failed", timestamp: (now | floor) }' > "$STATUS_FILE"
+        fi
+
+        artifact_field() {
+          echo "$ARTIFACTS" | jq -r --arg name "$1" --arg field "$2" \
+            '.artifacts[]? | select(.name==$name) | .[$field] // empty'
+        }
+        PLAN_ID=$(artifact_field "${DIR}-planJson" id); [ -z "$PLAN_ID" ] && PLAN_ID=null
+        PLAN_URL=$(artifact_field "${DIR}-planJson" archive_download_url)
+
+        # Present whether the plan passed or failed; on failure it is the only explanation the card has.
+        LOG_ID=$(artifact_field "${DIR}-plan-log" id); [ -z "$LOG_ID" ] && LOG_ID=null
+        LOG_URL=$(artifact_field "${DIR}-plan-log" archive_download_url)
+
+        ENV_ID=$(artifact_field "$ENV_ARTIFACT_NAME" id); [ -z "$ENV_ID" ] && ENV_ID=null
+        ENV_URL=$(artifact_field "$ENV_ARTIFACT_NAME" archive_download_url)
+
+        # The env goes in as an object rather than only as an artifact id: the artifact expires,
+        # the report does not, and the card would otherwise have to download and unzip it.
+        ENV_FILE="artifacts/${ENV_ARTIFACT_NAME}/$(basename "$ENV_PATH")"
+        ENV_JSON="{}"
+
+        # In a file rather than inline: the program needs both quote characters, and a bare
+        # ' would close the shell string wrapped around it.
+        cat > /tmp/env.jq <<'JQ'
+        [inputs
+         | select(test("^\\s*(#|$)") | not)
+         | capture("^\\s*(?<k>[^=]+?)\\s*=\\s*(?<v>.*?)\\s*$")
+         | select(.k != "")
+         # dotenv, which the card used to parse this artifact with, strips a surrounding quote
+         # pair. Match it so a value does not change meaning by changing source.
+         | .v |= sub("^\"(?<b>.*)\"$"; .b)
+         | .v |= sub("^'(?<b>.*)'$"; .b)
+         | { (.k): .v }]
+        | add // {}
+        JQ
+
+        if [ -f "$ENV_FILE" ]; then
+          ENV_JSON=$(jq -R -n -f /tmp/env.jq < "$ENV_FILE")
+        else
+          echo "::warning::$ENV_FILE is missing — reporting an empty env"
+        fi
+
+        REPORT=$(jq --argjson plan "$PLAN_ID" --arg planUrl "$PLAN_URL" \
+          --argjson planLog "$LOG_ID" --arg planLogUrl "$LOG_URL" \
+          --argjson envId "$ENV_ID" --arg envUrl "$ENV_URL" --argjson env "$ENV_JSON" \
+          --argjson azure "$AZURE_SIGNED_IN" --argjson aws "$AWS_SIGNED_IN" \
+          '. + { planJsonId: $plan, planJsonUrl: $planUrl,
+                 planLogId: $planLog,
+                 planLogUrl: (if $planLogUrl == "" then null else $planLogUrl end),
+                 envId: $envId,
+                 envUrl: (if $envUrl == "" then null else $envUrl end),
+                 env: $env,
+                 azureSignedIn: $azure, awsSignedIn: $aws }' \
+          "$STATUS_FILE")
+
+        echo "stage_result=$(echo "$REPORT" | jq -c .)" >> $GITHUB_OUTPUT
+        echo "state=$(echo "$REPORT" | jq -r 'if .status == "success" then "success" else "failure" end')" >> $GITHUB_OUTPUT
+        echo "$REPORT" | jq '.env |= (keys | length | tostring + " keys")'
+
+    - uses: ./.github/actions/record-deployment
+      with:
+        github_token: ${{ inputs.github_token }}
+        environment: ${{ inputs.environment }}
+        ref: ${{ inputs.ref }}
+        kind: plan
+        dir: ${{ inputs.dir }}
+        state: ${{ steps.build.outputs.state }}
+        payload: ${{ steps.build.outputs.stage_result }}
